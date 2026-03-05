@@ -38,7 +38,7 @@
     const { useState, useEffect, useMemo } = React;
 
     // ==========================================
-    // 0. 圖示元件 (替換掉 lucide-react，確保在單一 HTML 能正常運作)
+    // 0. 圖示元件
     // ==========================================
     const Calendar = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
     const Clock = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>;
@@ -50,7 +50,7 @@
     const CalendarHeart = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 10V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h7"></path><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path><path d="M21.29 14.7a2.43 2.43 0 0 0-2.65-.52c-.3.12-.57.3-.8.53l-.34.34-.35-.34a2.43 2.43 0 0 0-2.65-.53c-.3.12-.56.3-.79.53-.95.94-1 2.53-.2 3.59L17.5 22l4-3.73c.8-1.06.75-2.65-.21-3.57z"></path></svg>;
 
     // ==========================================
-    // 1. 模擬資料生成器
+    // 1. 模擬資料生成器 (僅在完全沒設定網址時顯示Demo)
     // ==========================================
     const generateMockSchedule = () => {
       const schedule = {};
@@ -112,7 +112,7 @@
     // ==========================================
     // 3. 步驟畫面元件
     // ==========================================
-    const StepOneTimeSelection = ({ schedule, availableDates, onTimeSelect, isLoadingSchedule }) => (
+    const StepOneTimeSelection = ({ schedule, availableDates, onTimeSelect, isLoadingSchedule, error, onFallbackToMock }) => (
       <div className="space-y-6 animate-fade-in-up">
         <p className="text-gray-500 text-sm text-center mb-4 bg-teal-50 py-2 rounded-lg text-teal-700">
           請選擇您方便的日期與時段 <br/><span className="text-xs opacity-80">(系統已自動避開無法預約的時間)</span>
@@ -122,7 +122,20 @@
           {isLoadingSchedule ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-3">
               <Clock className="animate-spin-slow text-teal-500" size={32} />
-              <p className="text-sm font-medium">正在讀取最新可用時段...</p>
+              <p className="text-sm font-medium">正在讀取真實行事曆資料...</p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center h-full text-red-500 space-y-3 p-6 text-center bg-red-50 rounded-xl border border-red-100">
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              <p className="font-bold text-lg">系統需要授權連線</p>
+              <p className="text-sm text-red-600 text-left mt-2 whitespace-pre-line leading-relaxed">{error}</p>
+              
+              <button 
+                onClick={onFallbackToMock}
+                className="mt-4 px-4 py-2 bg-red-100 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-200 transition-colors shadow-sm"
+              >
+                暫時使用測試資料預覽
+              </button>
             </div>
           ) : availableDates.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-2">
@@ -241,14 +254,18 @@
       const [selectedTime, setSelectedTime] = useState(null);
       
       const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
+      const [error, setError] = useState(null); // 新增錯誤狀態
       const [isSubmitting, setIsSubmitting] = useState(false);
       const [formData, setFormData] = useState({ name: '', email: '', notes: '' });
 
-      // 👇 將您部署完成的 Google Apps Script 網頁應用程式 URL 貼在這裡 👇
-      const GAS_URL = 'https://script.google.com/macros/s/AKfycbwm42tMpc_vRFVkZRE9GOBLcpktKdWVTc9gyGgu8K3gEvt3UY42UtwNu-KiJIpWiaXqvg/exec'; 
+      // 👇 【重要】將您部署完成的 Google Apps Script 網頁應用程式 URL 貼在這裡 👇
+      // 為了避免載入錯誤的舊網址，我已將此處清空。
+      // 當此處為空時，系統會自動使用測試資料讓您預覽畫面。
+      const GAS_URL = ''; 
 
       const fetchSchedule = async () => {
         setIsLoadingSchedule(true);
+        setError(null);
         
         if (!GAS_URL || GAS_URL.trim() === '') {
           setTimeout(() => {
@@ -268,12 +285,20 @@
           if (data && !data.error) {
             setSchedule(data);
           } else {
-            console.warn('GAS 回傳了錯誤，將退回使用模擬資料:', data.error);
-            setSchedule(generateMockSchedule()); 
+            console.error('GAS 回傳了錯誤:', data.error);
+            
+            let errorMsg = `伺服器回傳錯誤: ${data.error}`;
+            if (data.error.includes('permission') && data.error.includes('calendar')) {
+              errorMsg = '這是一個正常現象！系統被 Google 擋住了存取日曆的權限，請照著以下步驟解鎖：\n\n1. 回到 Google Apps Script 網頁\n2. 點擊上方工具列的下拉選單，選擇「getAvailableSchedule」\n3. 點擊旁邊的「執行 (Run)」按鈕\n4. 在跳出的警告視窗中點擊「審查權限」\n5. 點擊「進階」 > 「前往專案(不安全)」 > 「允許」\n6. 重新點擊右上角的「部署」>「管理部署作業」>「建立新版本」並發布！';
+            }
+            
+            setError(errorMsg);
+            setSchedule({});
           }
-        } catch (error) {
-          console.warn('無法連線至 Google Apps Script，正在使用模擬資料作為備用。');
-          setSchedule(generateMockSchedule()); 
+        } catch (err) {
+          console.error('連線至 Google Apps Script 失敗:', err);
+          setError('無法連線到您的 Google 日曆。請檢查：\n1. 是否有將 GAS 權限設為「所有人」。\n2. URL 網址是否正確。');
+          setSchedule({});
         } finally {
           setIsLoadingSchedule(false);
         }
@@ -349,6 +374,11 @@
         fetchSchedule(); 
       };
 
+      const handleFallbackToMock = () => {
+        setError(null);
+        setSchedule(generateMockSchedule());
+      };
+
       const headerTitles = { 1: '預約諮商時間', 2: '填寫預約資料', 3: '預約成功' };
 
       return (
@@ -383,6 +413,8 @@
                   availableDates={availableDates} 
                   onTimeSelect={handleTimeSelect}
                   isLoadingSchedule={isLoadingSchedule}
+                  error={error}
+                  onFallbackToMock={handleFallbackToMock}
                 />
               )}
 
