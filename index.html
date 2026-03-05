@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>線上協談預約系統</title>
+  
+  <!-- 載入 Tailwind CSS (排版與樣式) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 載入 FontAwesome (圖示) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- 載入 React -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- 載入 Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body { background-color: #f9fafb; font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .fade-in { animation: fadeIn 0.4s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // 👇 👇 👇 請把您在 Google Apps Script 拿到的網址貼在下面這行 👇 👇 👇
+    const API_URL = 'https://script.google.com/macros/s/AKfycbwkSxYqqnyzM6w-LDmyVrRnpqwaGhGDF4Nzu7ZTSpTH-77lHAiIuzRDZZlD9_kbtaEA/exec';
+    // 👆 👆 👆 貼在上面這行 👆 👆 👆
+
+    function App() {
+      const [schedule, setSchedule] = useState({});
+      const [step, setStep] = useState(1);
+      const [selectedDate, setSelectedDate] = useState(null);
+      const [selectedTime, setSelectedTime] = useState(null);
+      const [isSubmitting, setIsSubmitting] = useState(false);
+      const [isLoading, setIsLoading] = useState(true);
+      const [dateOffset, setDateOffset] = useState(0); // 🌟 控制翻頁的變數
+      const [formData, setFormData] = useState({ name: '', email: '', lineId: '', notes: '' });
+
+      useEffect(() => {
+        const fetchSchedule = async () => {
+          setIsLoading(true);
+          try {
+            if (API_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL' || !API_URL) {
+              // 假資料也支援翻頁顯示
+              const getFallbackSchedule = (offset) => {
+                const fallback = {};
+                const baseDate = new Date();
+                baseDate.setDate(baseDate.getDate() + offset);
+                for (let i = 1; i <= 14; i++) {
+                  const nextDate = new Date(baseDate);
+                  nextDate.setDate(baseDate.getDate() + i);
+                  if (nextDate.getDay() === 0 || nextDate.getDay() === 6) continue;
+                  const dateString = nextDate.toISOString().split('T')[0];
+                  const formattedDate = `${nextDate.getMonth() + 1}月${nextDate.getDate()}日 (${['日', '一', '二', '三', '四', '五', '六'][nextDate.getDay()]})`;
+                  // 假資料隨機產生時段
+                  const slots = ['09:00', '10:30', '14:00', '15:30', '19:00'].filter(() => Math.random() > 0.4);
+                  if (slots.length > 0) fallback[dateString] = { label: formattedDate, slots: slots };
+                }
+                return fallback;
+              };
+              setSchedule(getFallbackSchedule(dateOffset));
+              setIsLoading(false);
+              return;
+            }
+
+            // 🌟 呼叫 Google 後端時，帶入天數偏移量 (offset)
+            const response = await fetch(`${API_URL}?action=getSchedule&offset=${dateOffset}`);
+            const data = await response.json();
+            setSchedule(data);
+          } catch (error) {
+            console.error("載入失敗", error);
+            alert("無法載入可用時段，請稍後再試。");
+          } finally {
+            setIsLoading(false);
+          }
+        };
+        fetchSchedule();
+      }, [dateOffset]); // 當翻頁變數改變時，重新抓取資料
+
+      const availableDates = Object.keys(schedule);
+
+      const handleTimeSelect = (date, time) => {
+        setSelectedDate(date);
+        setSelectedTime(time);
+        setStep(2); 
+      };
+
+      const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+      };
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        try {
+          if (API_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL' || !API_URL) {
+            setTimeout(() => { setIsSubmitting(false); setStep(3); }, 1500);
+            return;
+          }
+
+          const response = await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              action: 'createBooking',
+              date: selectedDate,
+              time: selectedTime,
+              ...formData
+            })
+          });
+          const result = await response.json();
+          if (result.success) {
+            setStep(3);
+          } else {
+            throw new Error(result.message || '預約失敗');
+          }
+        } catch (error) {
+          console.error("預約送出失敗", error);
+          alert("抱歉，送出失敗，請確認該時段是否剛被預約走，或稍後再試。");
+        } finally {
+          setIsSubmitting(false);
+        }
+      };
+
+      const resetBooking = () => {
+        setStep(1); setSelectedDate(null); setSelectedTime(null);
+        setFormData({ name: '', email: '', lineId: '', notes: '' });
+      };
+
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden transition-all duration-300">
+            {/* Header */}
+            <div className="bg-teal-600 text-white p-6 relative">
+              {step === 2 && (
+                <button onClick={() => setStep(1)} className="absolute left-4 top-6 text-white hover:text-teal-200">
+                  <i className="fas fa-chevron-left text-xl"></i>
+                </button>
+              )}
+              <h1 className="text-xl font-bold text-center tracking-wide">
+                {step === 1 ? '選擇協談時間' : step === 2 ? '填寫預約資料' : '預約成功'}
+              </h1>
+              {step < 3 && (
+                <div className="flex justify-center mt-4 space-x-2">
+                  <div className={`w-3 h-3 rounded-full ${step >= 1 ? 'bg-white' : 'bg-teal-400 opacity-50'}`}></div>
+                  <div className={`w-8 h-1 rounded-full ${step >= 2 ? 'bg-white' : 'bg-teal-500 opacity-50'}`}></div>
+                  <div className={`w-3 h-3 rounded-full ${step >= 2 ? 'bg-white' : 'bg-teal-400 opacity-50'}`}></div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6">
+              {/* 步驟 1 */}
+              {step === 1 && (
+                <div className="space-y-4 fade-in">
+                  <p className="text-gray-500 text-sm text-center">每次協談為 50 分鐘，請選擇時段</p>
+                  
+                  {/* 🌟 翻頁按鈕區塊 */}
+                  <div className="flex justify-between items-center bg-teal-50 rounded-lg p-2 mb-2">
+                    <button 
+                      onClick={() => setDateOffset(prev => Math.max(0, prev - 14))}
+                      disabled={dateOffset === 0 || isLoading}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center ${dateOffset === 0 ? 'text-teal-300 cursor-not-allowed' : 'text-teal-700 bg-white shadow-sm hover:bg-teal-100'}`}
+                    >
+                      <i className="fas fa-chevron-left mr-1"></i> 上兩週
+                    </button>
+                    <span className="text-sm text-teal-800 font-semibold">
+                      {dateOffset === 0 ? '近期空檔' : `未來第 ${dateOffset/14 + 1} 頁`}
+                    </span>
+                    <button 
+                      onClick={() => setDateOffset(prev => prev + 14)}
+                      disabled={isLoading}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center ${isLoading ? 'text-teal-300 cursor-not-allowed' : 'text-teal-700 bg-white shadow-sm hover:bg-teal-100'}`}
+                    >
+                      下兩週 <i className="fas fa-chevron-right ml-1"></i>
+                    </button>
+                  </div>
+
+                  <div className="h-[380px] overflow-y-auto pr-2 space-y-4 custom-scrollbar">
+                    {isLoading ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-teal-600">
+                        <i className="fas fa-circle-notch fa-spin text-3xl mb-4"></i>
+                        <p>正在搜尋可用時段...</p>
+                      </div>
+                    ) : availableDates.length === 0 ? (
+                      <div className="text-center py-16 text-gray-400">
+                        <i className="fas fa-calendar-times text-5xl mb-4 opacity-30 text-teal-600"></i>
+                        <p className="font-medium text-gray-600 mb-1">這段期間已預約額滿或無空檔</p>
+                        <p className="text-sm text-gray-400">請點擊右上方「下兩週」查看更多時間</p>
+                      </div>
+                    ) : (
+                      availableDates.map(date => (
+                        <div key={date} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:border-teal-100 transition-colors">
+                          <div className="flex items-center text-teal-700 font-semibold mb-3">
+                            <i className="fas fa-calendar-alt mr-2"></i> {schedule[date].label}
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            {schedule[date].slots.map(time => (
+                              <button key={time} onClick={() => handleTimeSelect(date, time)} className="py-2 px-3 text-sm rounded-lg border border-teal-200 text-teal-600 bg-white hover:bg-teal-50 hover:border-teal-400 transition-colors focus:ring-2 focus:ring-teal-500 outline-none">
+                                {time}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 步驟 2 */}
+              {step === 2 && (
+                <div className="fade-in">
+                  <div className="bg-teal-50 rounded-xl p-4 mb-6 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-teal-600 font-semibold mb-1">已選時段</p>
+                      <p className="text-gray-800 font-medium">{schedule[selectedDate]?.label} {selectedTime}</p>
+                    </div>
+                    <i className="fas fa-clock text-teal-500 opacity-50 text-3xl"></i>
+                  </div>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1"><i className="fas fa-user mr-1 text-teal-600"></i> 姓名 <span className="text-red-500">*</span></label>
+                      <input type="text" name="name" required value={formData.name} onChange={handleInputChange} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="您的真實姓名" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1"><i className="fas fa-envelope mr-1 text-teal-600"></i> 電子郵件 <span className="text-red-500">*</span></label>
+                      <input type="email" name="email" required value={formData.email} onChange={handleInputChange} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="example@email.com" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1"><i className="fab fa-line mr-1 text-green-500"></i> LINE ID <span className="text-gray-400 text-xs ml-1">(選填)</span></label>
+                      <input type="text" name="lineId" value={formData.lineId} onChange={handleInputChange} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="您的 LINE ID" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1"><i className="fas fa-file-alt mr-1 text-teal-600"></i> 協談備註 <span className="text-gray-400 text-xs ml-1">(選填)</span></label>
+                      <textarea name="notes" rows="3" value={formData.notes} onChange={handleInputChange} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none resize-none" placeholder="簡單描述您想討論的議題..."></textarea>
+                    </div>
+                    <button type="submit" disabled={isSubmitting} className={`w-full py-3 rounded-lg font-bold text-white mt-6 ${isSubmitting ? 'bg-teal-400' : 'bg-teal-600 hover:bg-teal-700 shadow-md'}`}>
+                      {isSubmitting ? '處理中...' : '確認預約'}
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {/* 步驟 3 */}
+              {step === 3 && (
+                <div className="text-center py-8 fade-in">
+                  <i className="fas fa-check-circle text-green-500 text-6xl mb-4"></i>
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">預約已送出！</h2>
+                  <p className="text-gray-600 mb-6">感謝您，{formData.name}。<br/>您的預約時間：<span className="font-semibold text-teal-700">{schedule[selectedDate]?.label} {selectedTime}</span></p>
+                  <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 text-left mb-8 rounded-r-lg text-sm text-yellow-800">
+                    ✅ <b>我們已發送一封「預約確認信」到您的 Email，裡面包含專屬的取消連結。</b><br/><br/>如果有留下 LINE ID，我們也會盡快將您加入好友聯繫。
+                  </div>
+                  <button onClick={resetBooking} className="text-teal-600 font-medium hover:text-teal-800">返回重新預約</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
