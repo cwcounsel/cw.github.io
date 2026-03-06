@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>線上協談預約系統</title>
+  <title>線上諮商預約系統</title>
   
   <!-- 引入 Tailwind CSS 進行快速排版 -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -85,11 +85,19 @@
       </div>
     );
 
-    const StepOneTimeSelection = ({ schedule, availableDates, onTimeSelect, isLoadingSchedule, error, onFallbackToMock }) => (
+    const StepOneTimeSelection = ({ schedule, availableDates, onTimeSelect, isLoadingSchedule, error, onFallbackToMock, isMockMode }) => (
       <div className="space-y-6 animate-fade-in-up">
-        <p className="text-gray-500 text-sm text-center mb-4 bg-teal-50 py-2 rounded-lg text-teal-700 font-medium">
-          請選擇您方便的日期與時段 <br/><span className="text-xs opacity-80">(系統已自動過濾您日曆中忙碌的時間)</span>
-        </p>
+        {isMockMode ? (
+          <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg flex flex-col items-center justify-center text-center mb-4">
+            <span className="text-orange-600 font-bold text-sm mb-1">⚠️ 測試預覽模式</span>
+            <span className="text-xs text-orange-500">尚未綁定您的專屬 GAS_URL，目前顯示為模擬資料</span>
+          </div>
+        ) : (
+          <p className="text-gray-500 text-sm text-center mb-4 bg-teal-50 py-2 rounded-lg text-teal-700 font-medium">
+            請選擇您方便的日期與時段 <br/><span className="text-xs opacity-80">(系統已自動過濾您日曆中忙碌的時間)</span>
+          </p>
+        )}
+        
         <div className="h-[420px] overflow-y-auto pr-2 space-y-4 custom-scrollbar">
           {isLoadingSchedule ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-3">
@@ -100,7 +108,7 @@
             <div className="flex flex-col items-center justify-center h-full text-red-500 space-y-3 p-6 text-center bg-red-50 rounded-xl border border-red-100">
               <p className="font-bold text-lg">日曆連線失敗</p>
               <p className="text-sm text-red-600 text-left whitespace-pre-line leading-relaxed">{error}</p>
-              <button onClick={onFallbackToMock} className="mt-4 px-4 py-2 bg-red-100 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-200 transition-colors shadow-sm">暫時使用測試資料預覽</button>
+              <button type="button" onClick={onFallbackToMock} className="mt-4 px-4 py-2 bg-red-100 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-200 transition-colors shadow-sm">暫時使用測試資料預覽</button>
             </div>
           ) : availableDates.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-2"><p>近期已無可用時段，請稍後再試</p></div>
@@ -112,13 +120,82 @@
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   {schedule[date].slots.map(time => (
-                    <button key={time} onClick={() => onTimeSelect(date, time)} className="py-2.5 px-2 text-sm font-medium rounded-lg border border-teal-100 text-teal-700 bg-teal-50/50 hover:bg-teal-600 hover:text-white hover:border-teal-600 transition-all focus:ring-4 focus:ring-teal-200 focus:outline-none active:scale-95">{time}</button>
+                    <button type="button" key={time} onClick={() => onTimeSelect(date, time)} className="py-2.5 px-2 text-sm font-medium rounded-lg border border-teal-100 text-teal-700 bg-teal-50/50 hover:bg-teal-600 hover:text-white hover:border-teal-600 transition-all focus:ring-4 focus:ring-teal-200 focus:outline-none active:scale-95">{time}</button>
                   ))}
                 </div>
               </div>
             ))
           )}
         </div>
+      </div>
+    );
+
+    const StepTwoForm = ({ schedule, selectedDate, selectedTime, formData, onChange, onSubmit, isSubmitting }) => (
+      <div className="animate-fade-in-right">
+        <div className="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl p-5 mb-6 flex items-center justify-between border border-teal-100 shadow-sm">
+          <div>
+            <p className="text-xs text-teal-600 font-bold mb-1 tracking-wider">已選時段</p>
+            <p className="text-gray-800 font-bold text-lg">
+              {schedule[selectedDate] ? schedule[selectedDate].label : ''} <span className="text-teal-700 ml-2">{selectedTime}</span>
+            </p>
+          </div>
+          <div className="bg-white p-2 rounded-full shadow-sm">
+            <Clock className="text-teal-500" size={24} />
+          </div>
+        </div>
+
+        <form onSubmit={onSubmit} className="space-y-2">
+          <InputField 
+            label="真實姓名" icon={User} required name="name" 
+            value={formData.name} onChange={onChange} placeholder="請輸入您的姓名" 
+          />
+          <InputField 
+            label="電子郵件" icon={Mail} required type="email" name="email" 
+            value={formData.email} onChange={onChange} placeholder="example@email.com" 
+          />
+          <InputField 
+            label="諮商備註" icon={FileText} type="textarea" note="(選填)" name="notes" rows="3" 
+            value={formData.notes} onChange={onChange} placeholder="簡單描述您想討論的議題，或需要特別協助的地方..." 
+          />
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className={`w-full py-3.5 rounded-xl font-bold text-white shadow-lg transition-all mt-8 flex justify-center items-center ${
+              isSubmitting 
+                ? 'bg-gray-400 cursor-not-allowed shadow-none' 
+                : 'bg-teal-600 hover:bg-teal-700 hover:shadow-teal-500/30 hover:-translate-y-0.5 active:translate-y-0'
+            }`}
+          >
+            {isSubmitting ? (
+              <span className="flex items-center"><Clock className="animate-spin mr-2" size={18} /> 處理中...</span>
+            ) : '確認送出預約'}
+          </button>
+        </form>
+      </div>
+    );
+
+    const StepThreeSuccess = ({ formData, schedule, selectedDate, selectedTime, onReset, isMockMode }) => (
+      <div className="text-center py-10 animate-scale-in">
+        <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6 relative">
+          <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-20"></div>
+          <CheckCircle className="text-green-500 relative z-10" size={48} />
+        </div>
+        
+        <h2 className="text-2xl font-bold text-gray-800 mb-3">預約成功！</h2>
+        <p className="text-gray-600 mb-6 font-medium">
+          {schedule[selectedDate] ? schedule[selectedDate].label : ''} {selectedTime}
+        </p>
+        
+        {isMockMode && (
+          <div className="bg-orange-50 border-l-4 border-orange-400 p-4 text-left mb-8 rounded-r-xl shadow-sm">
+            <p className="text-sm text-orange-800 font-semibold">
+              ⚠️ 這是預覽畫面，預約並未真實送出！
+            </p>
+          </div>
+        )}
+        
+        <button type="button" onClick={onReset} className="text-teal-600 font-semibold hover:underline">返回首頁</button>
       </div>
     );
 
@@ -132,12 +209,15 @@
       const [isSubmitting, setIsSubmitting] = useState(false);
       const [formData, setFormData] = useState({ name: '', email: '', notes: '' });
 
-      const GAS_URL = 'https://script.google.com/macros/s/AKfycbwm42tMpc_vRFVkZRE9GOBLcpktKdWVTc9gyGgu8K3gEvt3UY42UtwNu-KiJIpWiaXqvg/exec'; 
+      // 👇 【重要】將您部署完成的 Google Apps Script 網頁應用程式 URL 貼在這裡 👇
+      const GAS_URL = ''; 
+      
+      const isMockMode = !GAS_URL || GAS_URL.trim() === '' || GAS_URL.includes('AKfycbwm');
 
       const fetchSchedule = async () => {
         setIsLoadingSchedule(true);
         setError(null);
-        if (!GAS_URL || GAS_URL.trim() === '') {
+        if (isMockMode) {
           setTimeout(() => { setSchedule(generateMockSchedule()); setIsLoadingSchedule(false); }, 800);
           return;
         }
@@ -158,24 +238,76 @@
 
       const availableDates = useMemo(() => Object.keys(schedule).sort(), [schedule]);
 
+      // ✅ 優化：獨立的事件處理，確保觸發且自動畫面捲動
+      const handleTimeSelect = (date, time) => {
+        setSelectedDate(date);
+        setSelectedTime(time);
+        setStep(2);
+        window.scrollTo(0, 0); // 在手機上自動回到上方
+      };
+
+      const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+      };
+
+      const resetBooking = () => {
+        setStep(1);
+        setSelectedDate(null);
+        setSelectedTime(null);
+        setFormData({ name: '', email: '', notes: '' });
+        fetchSchedule(); 
+        window.scrollTo(0, 0);
+      };
+
       const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
-        const submitData = { dateRaw: selectedDate, dateLabel: schedule[selectedDate]?.label, time: selectedTime, name: formData.name, email: formData.email, notes: formData.notes };
+        
+        if (isMockMode) {
+          setTimeout(() => {
+            setIsSubmitting(false);
+            setStep(3);
+            alert('💡 溫馨提示：您目前正在使用「測試模式」\n\n因為尚未在程式碼中填寫您的專屬 GAS_URL，所以這筆預約【不會】真實寫入您的 Google 日曆！\n\n若要正式啟用，請將您部署好的網址填入程式碼第 155 行中。');
+            window.scrollTo(0, 0);
+          }, 1500);
+          return;
+        }
+
+        const submitData = { 
+          dateRaw: selectedDate, 
+          dateLabel: schedule[selectedDate] ? schedule[selectedDate].label : '', 
+          time: selectedTime, 
+          name: formData.name, 
+          email: formData.email, 
+          notes: formData.notes 
+        };
+        
         try {
           const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(submitData) });
           const result = await response.json();
-          if (result.status === 'success') setStep(3);
-          else alert('預約失敗: ' + (result.message || '未知錯誤'));
-        } catch (error) { alert('送出失敗，請檢查網路連線。'); }
-        finally { setIsSubmitting(false); }
+          if (result.status === 'success') {
+            setStep(3);
+            window.scrollTo(0, 0);
+          } else {
+            alert('預約失敗: ' + (result.message || '未知錯誤'));
+          }
+        } catch (error) { 
+          alert('送出失敗，請檢查網路連線。'); 
+        } finally { 
+          setIsSubmitting(false); 
+        }
       };
 
       return (
         <div className="min-h-screen bg-gray-100/50 flex items-center justify-center p-4 font-sans text-gray-800 sm:p-8">
           <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden ring-1 ring-gray-900/5">
             <div className="bg-teal-600 text-white p-6 relative overflow-hidden">
-              {step === 2 && <button onClick={() => setStep(1)} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 rounded-full z-10"><ChevronLeft size={24} /></button>}
+              {step === 2 && (
+                <button type="button" onClick={() => { setStep(1); window.scrollTo(0, 0); }} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 rounded-full z-10">
+                  <ChevronLeft size={24} />
+                </button>
+              )}
               <div className="relative z-10">
                 <h1 className="text-xl font-bold text-center tracking-wide flex items-center justify-center">
                   {step === 1 && <CalendarHeart className="mr-2" size={22} />}
@@ -185,15 +317,37 @@
               </div>
             </div>
             <div className="p-6 sm:p-8">
-              {step === 1 && <StepOneTimeSelection schedule={schedule} availableDates={availableDates} onTimeSelect={(d, t) => { setSelectedDate(d); setSelectedTime(t); setStep(2); }} isLoadingSchedule={isLoadingSchedule} error={error} onFallbackToMock={() => { setError(null); setSchedule(generateMockSchedule()); }} />}
-              {step === 2 && <StepTwoForm schedule={schedule} selectedDate={selectedDate} selectedTime={selectedTime} formData={formData} onChange={e => setFormData({...formData, [e.target.name]: e.target.value})} onSubmit={handleSubmit} isSubmitting={isSubmitting} />}
+              {step === 1 && (
+                <StepOneTimeSelection 
+                  schedule={schedule} 
+                  availableDates={availableDates} 
+                  onTimeSelect={handleTimeSelect} 
+                  isLoadingSchedule={isLoadingSchedule} 
+                  error={error} 
+                  onFallbackToMock={() => { setError(null); setSchedule(generateMockSchedule()); }} 
+                  isMockMode={isMockMode} 
+                />
+              )}
+              {step === 2 && (
+                <StepTwoForm 
+                  schedule={schedule} 
+                  selectedDate={selectedDate} 
+                  selectedTime={selectedTime} 
+                  formData={formData} 
+                  onChange={handleInputChange} 
+                  onSubmit={handleSubmit} 
+                  isSubmitting={isSubmitting} 
+                />
+              )}
               {step === 3 && (
-                <div className="text-center py-10 animate-scale-in">
-                  <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6 relative"><CheckCircle className="text-green-500" size={48} /></div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-3">預約成功！</h2>
-                  <p className="text-gray-600 mb-6 font-medium">{schedule[selectedDate]?.label} {selectedTime}</p>
-                  <button onClick={() => { setStep(1); fetchSchedule(); }} className="text-teal-600 font-semibold hover:underline">返回首頁</button>
-                </div>
+                <StepThreeSuccess 
+                  formData={formData} 
+                  schedule={schedule} 
+                  selectedDate={selectedDate} 
+                  selectedTime={selectedTime} 
+                  onReset={resetBooking} 
+                  isMockMode={isMockMode}
+                />
               )}
             </div>
           </div>
