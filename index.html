@@ -160,6 +160,11 @@
         const available = {};
         const today = new Date();
         
+        // 💡 秘訣：在這裡調整「行程前後的緩衝時間」(單位：分鐘)
+        // 之前設定 60 分鐘，導致只要有 2~3 個分散的行程，整天就會被判定無法預約！
+        // 現在幫您改為 30 分鐘，您也可以隨時改成 15 或 0。
+        const bufferMinutes = 30; 
+        
         for (let i = 0; i <= 30; i++) {
           const next = new Date(today);
           next.setDate(today.getDate() + i);
@@ -181,7 +186,7 @@
             if (slotStart < Date.now() + 3600000) return false;
 
             const slotEnd = slotStart + 3600000; 
-            const buffer = 3600000; 
+            const buffer = bufferMinutes * 60 * 1000; // 轉換為毫秒
 
             return !busySlots.some(busy => {
               const bStart = new Date(busy.start).getTime();
@@ -193,7 +198,7 @@
                 return (slotStart >= bStart && slotStart < bEnd) || (slotEnd > bStart && slotEnd <= bEnd);
               }
               
-              // 一般幾小時的事件：保留前後 1 小時緩衝
+              // 一般幾小時的事件：套用上面設定的緩衝時間
               return (slotEnd + buffer > bStart) && (slotStart < bEnd + buffer);
             });
           });
