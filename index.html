@@ -63,12 +63,14 @@
     const SearchIcon = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
     const TrashIcon = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
     const RefreshIcon = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>;
+    const InfoIcon = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>;
 
     const safeScrollToTop = () => { try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {} };
 
+    // 更新進度條為 4 個步驟
     const StepIndicator = ({ currentStep }) => (
       <div className="flex justify-center mt-4 space-x-2">
-        {[1, 2, 3].map(s => <div key={s} className={`transition-all duration-300 rounded-full ${currentStep >= s ? 'w-4 h-2 bg-white' : 'w-2 h-2 bg-teal-400 opacity-50'}`}></div>)}
+        {[1, 2, 3, 4].map(s => <div key={s} className={`transition-all duration-300 rounded-full ${currentStep >= s ? 'w-4 h-2 bg-white' : 'w-2 h-2 bg-teal-400 opacity-50'}`}></div>)}
       </div>
     );
 
@@ -191,12 +193,11 @@
 
       const availableDates = useMemo(() => Object.keys(schedule).sort(), [schedule]);
 
-      // 🚨 修復關鍵：隔離送出的資料，保證 GET 參數永遠正確
       const sendToGAS = (actionType, rawData) => {
         if (!GAS_WEBHOOK_URL) return;
         
         const params = new URLSearchParams({
-            action: actionType, // 絕對強制寫入 action，不允許被覆蓋
+            action: actionType,
             name: rawData.name || '',
             email: rawData.email || '',
             phone: rawData.phone || '',
@@ -231,19 +232,18 @@
 
         try {
           const payload = { 
-            action: 'book', // 存進資料庫的標記
+            action: 'book',
             dateRaw: selectedDate, 
             dateLabel: selectedDateLabel, 
             time: selectedTime, 
             ...formData
           };
           
-          // 寫入 Firebase
           await addDoc(collection(db, 'artifacts', databaseNameId, 'public', 'data', 'bookings'), { ...payload, userId: user.uid, createdAt: new Date().toISOString() });
           
-          // 呼叫 GAS (明確指定為 book)
           sendToGAS('book', payload);
-          setStep(3);
+          // 提交成功後跳至第 4 步
+          setStep(4);
         } catch (e) { setSubmitError("預約失敗"); }
         finally { setIsSubmitting(false); safeScrollToTop(); }
       };
@@ -263,16 +263,10 @@
       const handleCancel = async (bookingId) => {
         try {
           const bookingToCancel = queriedBookings.find(b => b.id === bookingId);
-          // 1. Firebase 刪除
           await deleteDoc(doc(db, 'artifacts', databaseNameId, 'public', 'data', 'bookings', bookingId));
-          
-          // 2. 更新畫面
           setQueriedBookings(prev => prev.filter(b => b.id !== bookingId));
           setCancelConfirmId(null);
-          
-          // 3. 🚨 呼叫 GAS (強制指定 action 為 cancel，不管資料庫原來存什麼)
           sendToGAS('cancel', bookingToCancel);
-          
           alert("預約已取消成功！");
         } catch (e) { alert("取消失敗，請檢查網路連線"); }
       };
@@ -281,14 +275,14 @@
         <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans text-slate-800">
           <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
             <div className="bg-teal-600 text-white p-6 relative text-center">
-              {step === 2 && currentMode === 'book' && <button onClick={() => setStep(1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-full transition-colors"><ChevronLeft size={24} /></button>}
+              {step > 1 && step < 4 && currentMode === 'book' && <button onClick={() => setStep(step - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-full transition-colors"><ChevronLeft size={24} /></button>}
               <h1 className="text-xl font-bold flex items-center justify-center">
-                {currentMode === 'book' ? (step === 3 ? "預約成功" : "線上協談預約") : "查詢與取消紀錄"}
+                {currentMode === 'book' ? (step === 4 ? "預約成功" : "線上協談預約") : "查詢與取消紀錄"}
               </h1>
               <p className="text-[10px] text-teal-100 mt-1 opacity-90 tracking-wider font-light">
                 &copy; {new Date().getFullYear()} Chiao. All rights reserved.
               </p>
-              {currentMode === 'book' && step < 3 && <StepIndicator currentStep={step} />}
+              {currentMode === 'book' && step < 4 && <StepIndicator currentStep={step} />}
             </div>
 
             {step === 1 && (
@@ -343,6 +337,7 @@
                                   setSelectedDate(date);
                                   setSelectedTime(time);
                                   setSelectedDateLabel(schedule[date]?.label || ''); 
+                                  // 前往第二步：閱讀注意事項
                                   setStep(2);
                                   safeScrollToTop();
                                 }} className="py-2.5 px-2 text-sm font-medium rounded-lg border border-teal-100 text-teal-700 bg-teal-50/50 hover:bg-teal-600 hover:text-white transition-all active:scale-95">{time}</button>
@@ -354,6 +349,33 @@
                     </div>
                   </div>
                 ) : step === 2 ? (
+                  <div className="animate-fade-in-right">
+                    <div className="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl p-4 mb-6 flex flex-col items-center justify-center border border-teal-100 shadow-sm">
+                      <p className="text-xs text-teal-600 font-bold mb-1 tracking-wider">您選擇的時段</p>
+                      <p className="text-teal-800 font-bold text-lg">{selectedDateLabel} {selectedTime}</p>
+                    </div>
+
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+                      <div className="bg-slate-100 text-slate-700 px-4 py-3 font-bold text-center flex justify-center items-center text-sm">
+                        <InfoIcon size={18} className="mr-2 text-teal-600" />
+                        預約提醒與注意事項
+                      </div>
+                      <div className="p-5 text-[14px] text-gray-700 leading-relaxed space-y-4">
+                        <p className="font-bold text-teal-800">您好，歡迎您的來訪：</p>
+                        <p>謝謝您給予繼葳這份信任。當您完成預約後，繼葳將於上線後 24 小時內與您確認本次協談的時間與進行方式，並提供相關注意事項。本服務為公益性質，全程不收費。</p>
+                        <p>協談內容將依專業倫理原則妥善保密。若預約者為未成年人，後續聯絡與協談安排將以青少年本人為主要溝通對象，並在尊重意願與評估需要的前提下，視情況（例如：需要家庭支持、涉及重要決策或安全風險）邀請家長／監護人加入討論。</p>
+                        <p className="text-red-600 font-medium bg-red-50 p-3 rounded-lg border border-red-100 text-[13px]">
+                          若涉及人身安全風險，將依需要啟動必要之協助。若有緊急人身安全疑慮，建議優先聯絡當地緊急資源或 119。
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button type="button" onClick={() => setStep(1)} className="w-1/3 py-3.5 rounded-xl font-bold text-teal-700 bg-teal-100 hover:bg-teal-200 transition-all flex justify-center items-center">返回重選</button>
+                      <button type="button" onClick={() => { setStep(3); safeScrollToTop(); }} className="w-2/3 py-3.5 rounded-xl font-bold text-white shadow-lg bg-teal-600 hover:bg-teal-700 active:scale-95 transition-all flex justify-center items-center">我已了解並同意</button>
+                    </div>
+                  </div>
+                ) : step === 3 ? (
                   <div className="animate-fade-in-right">
                     <div className="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl p-5 mb-6 flex items-center justify-between border border-teal-100 shadow-sm">
                       <div>
@@ -373,7 +395,7 @@
                       <InputField label="協談備註" icon={FileText} type="textarea" note="(選填)" name="notes" rows="3" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="簡單描述您想討論的議題..." />
 
                       <div className="flex gap-3 mt-8">
-                        <button type="button" onClick={() => setStep(1)} disabled={isSubmitting} className="w-1/3 py-3.5 rounded-xl font-bold text-teal-700 bg-teal-100 hover:bg-teal-200 transition-all flex justify-center items-center">上一步</button>
+                        <button type="button" onClick={() => setStep(2)} disabled={isSubmitting} className="w-1/3 py-3.5 rounded-xl font-bold text-teal-700 bg-teal-100 hover:bg-teal-200 transition-all flex justify-center items-center">上一步</button>
                         <button type="submit" disabled={isSubmitting} className={`w-2/3 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex justify-center items-center ${isSubmitting ? 'bg-gray-400 cursor-not-allowed shadow-none' : 'bg-teal-600 hover:bg-teal-700 active:scale-95'}`}>
                           {isSubmitting ? <span className="flex items-center"><Clock className="animate-spin mr-2" size={18} /> 處理中...</span> : '確認送出'}
                         </button>
