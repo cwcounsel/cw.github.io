@@ -216,7 +216,8 @@
           const dateStr = `${yyyy}-${mm}-${dd}`;
           
           const booked = allBookings.filter(b => b.dateRaw === dateStr).map(b => b.time);
-          const allTimeSlots = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'];
+          // 👇 這裡已更新為只有偶數時間 👇
+          const allTimeSlots = ['10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
           
           const slots = allTimeSlots.filter(time => {
             if (booked.includes(time)) return false;
