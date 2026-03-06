@@ -96,9 +96,9 @@
           {note && <span className="text-gray-400 text-xs ml-2">{note}</span>}
         </label>
         {type === 'textarea' ? (
-          <textarea {...props} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition-all resize-none bg-gray-50 focus:bg-white" />
+          <textarea {...props} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition-all resize-none bg-gray-50 focus:bg-white text-base" />
         ) : (
-          <input type={type} required={required} {...props} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white" />
+          <input type={type} required={required} {...props} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white text-base" />
         )}
       </div>
     );
@@ -106,7 +106,7 @@
     const StepOneTimeSelection = ({ schedule, availableDates, onTimeSelect, isLoadingSchedule, error }) => (
       <div className="space-y-6 animate-fade-in-up">
         <p className="text-gray-500 text-sm text-center mb-4 bg-teal-50 py-2 rounded-lg text-teal-700 font-medium">
-          請選擇您方便的日期與時段 <br/><span className="text-xs opacity-80">(系統已即時過濾衝突時段與保留間隔)</span>
+          請選擇您方便的日期與時段 <br/><span className="text-xs opacity-80">(系統已即時過濾衝突時段與保留前後兩小時間隔)</span>
         </p>
         
         <div className="h-[420px] overflow-y-auto pr-2 space-y-4 custom-scrollbar">
@@ -117,9 +117,9 @@
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-full text-red-500 space-y-3 p-6 text-center bg-red-50 rounded-xl border border-red-100">
-              <p className="font-bold text-lg">行事曆連線失敗</p>
+              <p className="font-bold text-lg">系統同步失敗</p>
               <p className="text-sm text-red-600 text-left whitespace-pre-line leading-relaxed">{error}</p>
-              <p className="text-[10px] text-gray-400 mt-2">請確保 GAS 已部署為「所有人」且網址正確</p>
+              <p className="text-[10px] text-gray-400 mt-2">請確保 GAS 網址正確且部署設為「所有人」</p>
             </div>
           ) : availableDates.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-2"><p>近期已無可用時段，請稍後再試</p></div>
@@ -165,7 +165,7 @@
           <InputField label="真實姓名" icon={User} required name="name" value={formData.name} onChange={onChange} placeholder="請輸入您的姓名" />
           <InputField label="手機號碼" icon={PhoneIcon} required type="tel" name="phone" value={formData.phone} onChange={onChange} placeholder="請輸入您的聯絡電話" />
           <InputField label="電子郵件" icon={Mail} required type="email" name="email" value={formData.email} onChange={onChange} placeholder="example@email.com" />
-          <InputField label="協談備註" icon={FileText} type="textarea" note="(選填)" name="notes" rows="3" value={formData.notes} onChange={onChange} placeholder="簡單描述您想討論的議題，或需要特別協助的地方..." />
+          <InputField label="協談備註" icon={FileText} type="textarea" note="(選填)" name="notes" rows="3" value={formData.notes} onChange={onChange} placeholder="簡單描述您想討論的議題..." />
 
           <div className="flex gap-3 mt-8">
             <button
@@ -208,7 +208,7 @@
         
         <div className="bg-teal-50 border-l-4 border-teal-400 p-4 text-left mb-8 rounded-r-xl shadow-sm">
           <p className="text-sm text-teal-800 font-medium">
-            您的協談資料已經記錄，我們將盡快透過 Email ({formData.email}) 與您聯繫確認。
+            您的協談資料已經記錄，我們將盡快透過 Email ({formData.email}) 與您聯繫。
           </p>
         </div>
         
@@ -216,7 +216,7 @@
       </div>
     );
 
-    // --- 查詢與取消預約元件 (修正高度與邊距) ---
+    // --- 查詢與取消預約元件 (高度與邊距修正) ---
     const QueryBookingView = ({ allBookings, db, databaseNameId }) => {
       const [queryEmail, setQueryEmail] = useState('');
       const [queryPhone, setQueryPhone] = useState('');
@@ -230,8 +230,8 @@
         setIsQuerying(true);
         const todayStr = new Date().toISOString().split('T')[0];
         const results = allBookings.filter(b => 
-          b.email?.toLowerCase() === queryEmail.toLowerCase() && 
-          b.phone === queryPhone &&
+          b.email?.toLowerCase().trim() === queryEmail.toLowerCase().trim() && 
+          b.phone?.trim() === queryPhone.trim() &&
           b.dateRaw >= todayStr
         );
         
@@ -265,7 +265,7 @@
             }).catch(e => console.warn("Background notification failed", e));
           }
           
-          alert('預約已成功取消！此時段將重新開放預約。');
+          alert('預約已成功取消！');
         } catch (err) {
           console.error(err);
           alert('取消失敗，請確認網路連線。');
@@ -275,9 +275,9 @@
       };
 
       return (
-        <div className="animate-fade-in-up -mt-2">
+        <div className="animate-fade-in-up">
           <p className="text-gray-500 text-sm text-center mb-6 bg-teal-50 py-3 rounded-lg text-teal-700 font-medium">
-            請輸入您預約時使用的 Email 與 手機號碼 來查詢或取消您的協談時間。
+            請輸入預約時使用的 Email 與手機查詢協談紀錄。
           </p>
           
           <form onSubmit={handleQuery} className="space-y-3">
@@ -287,7 +287,7 @@
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none transition-all bg-gray-50 focus:bg-white text-base"
             />
             <input 
-              type="tel" required placeholder="請輸入 手機號碼"
+              type="tel" required placeholder="請輸入手機號碼"
               value={queryPhone} onChange={e => setQueryPhone(e.target.value)}
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none transition-all bg-gray-50 focus:bg-white text-base"
             />
@@ -298,9 +298,9 @@
 
           {queriedBookings !== null && (
             <div className="mt-8 space-y-4">
-              <h3 className="text-lg font-bold text-gray-800 border-b pb-2">查詢結果</h3>
+              <h3 className="text-lg font-bold text-gray-800 border-b pb-2">您的預約列表</h3>
               {queriedBookings.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">目前沒有找到未來有效的預約紀錄喔！</p>
+                <p className="text-gray-500 text-center py-4">查無未來的預約紀錄！</p>
               ) : (
                 queriedBookings.map(booking => (
                   <div key={booking.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -343,14 +343,14 @@
       const [submitError, setSubmitError] = useState(null);
       const [formData, setFormData] = useState({ name: '', phone: '', email: '', notes: '' });
 
-      // 初始化 Firebase 匿名登入
+      // 初始化 Firebase
       useEffect(() => {
         const initAuth = async () => {
           try {
             await signInAnonymously(auth);
           } catch (e) {
             console.error("Auth error", e);
-            setError("無法連線至資料庫，請檢查您的設定或網路。");
+            setError("Firebase 連線失敗，請檢查設定區 1");
           }
         };
         initAuth();
@@ -358,7 +358,7 @@
         return () => unsubscribe();
       }, []);
 
-      // 監聽 Firestore 即時預約資料
+      // 監聽 Firebase 資料
       useEffect(() => {
         if (!user) return;
         setIsLoadingSchedule(true);
@@ -374,29 +374,30 @@
         return () => unsubscribe();
       }, [user]);
 
-      // 抓取外部 Google 行事曆的忙碌時間 (修正 Fetch 錯誤)
+      // 讀取行事曆 (優化連線邏輯)
       useEffect(() => {
-        if (GAS_WEBHOOK_URL && GAS_WEBHOOK_URL.startsWith('http')) {
-          const timestamp = new Date().getTime();
-          // 使用最簡單的 Fetch 方式，避免 CORS 標頭導致錯誤
-          fetch(`${GAS_WEBHOOK_URL}?action=getBusy&t=${timestamp}`)
-            .then(res => {
-              if (!res.ok) throw new Error('伺服器回傳錯誤: ' + res.status);
-              return res.json();
-            })
-            .then(data => {
-              if (data && data.busy) {
-                console.log("成功取得行事曆外部事件:", data.busy.length, "筆");
-                setBusySlots(data.busy);
-              } else if (data && data.error) {
-                throw new Error(data.error);
-              }
-            })
-            .catch(err => {
-              console.warn("行事曆連線問題:", err.message);
-              setError("連不到行事曆，請確保您的 GAS 已正確部署且權限設為『所有人』。");
-            });
-        }
+        const loadBusyCalendar = async () => {
+          if (!GAS_WEBHOOK_URL || !GAS_WEBHOOK_URL.startsWith('http')) return;
+          
+          try {
+            const timestamp = Date.now();
+            const response = await fetch(`${GAS_WEBHOOK_URL}?action=getBusy&t=${timestamp}`);
+            
+            if (!response.ok) throw new Error(`HTTP 錯誤: ${response.status}`);
+            
+            const data = await response.json();
+            if (data && data.busy) {
+              console.log("成功讀取行事曆繁忙事件，共", data.busy.length, "筆");
+              setBusySlots(data.busy);
+            } else if (data && data.error) {
+              throw new Error(data.error);
+            }
+          } catch (err) {
+            console.warn("無法取得外部行事曆資料:", err.message);
+            setError("無法抓取您的行事曆，預約時段可能會有衝突。請確保 GAS 部署權限為『所有人』。");
+          }
+        };
+        loadBusyCalendar();
       }, []);
 
       // 產生排程模板
@@ -420,7 +421,7 @@
         return scheduleTemplate;
       }, []);
 
-      // 過濾已被預約的時段 + 外部行事曆避讓機制 (嚴格間隔2小時)
+      // 過濾時段 (嚴格前後兩小時避讓)
       const schedule = useMemo(() => {
         const availableSchedule = {};
         Object.keys(baseSchedule).forEach(date => {
@@ -429,29 +430,28 @@
             .map(b => b.time);
             
           const availableSlots = baseSchedule[date].slots.filter(time => {
+            // 排除 Firebase 已預約
             if (bookedSlotsForDate.includes(time)) return false;
 
-            // 將網頁時段轉換為 timestamp (假設您的系統在台灣時間 UTC+8)
+            // 轉換為台灣時間 Timestamp
             const slotStart = new Date(`${date}T${time}:00+08:00`).getTime();
-            const slotEnd = slotStart + 60 * 60 * 1000; // 協談長度假設為 1 小時
-            const TWO_HOURS = 2 * 60 * 60 * 1000;
+            const slotEnd = slotStart + 60 * 60 * 1000; 
+            const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
             const hasConflict = busySlots.some(busy => {
               const busyStart = new Date(busy.start).getTime();
               const busyEnd = new Date(busy.end).getTime();
 
-              // 全天事件判定
-              if (busyEnd - busyStart >= 23 * 60 * 60 * 1000) {
-                 const busyDateStr = new Date(busyStart + (8 * 3600000)).toISOString().split('T')[0];
-                 if (busyDateStr === date) return true; 
+              // 全天事件處理
+              if (busyEnd - busyStart >= 23 * 60 * 60000) {
+                 const busyDateStr = new Date(busyStart + 28800000).toISOString().split('T')[0];
+                 return busyDateStr === date;
               }
               
-              // 雙向檢查：新時段不可出現在舊事件前後兩小時內
-              const tooCloseToBefore = (slotEnd + TWO_HOURS > busyStart) && (slotStart < busyStart);
-              const tooCloseToAfter = (slotStart < busyEnd + TWO_HOURS) && (slotEnd > busyEnd);
-              const overlaps = (slotStart < busyEnd) && (slotEnd > busyStart);
-
-              return tooCloseToBefore || tooCloseToAfter || overlaps;
+              // 避讓邏輯：新時段不可出現在舊事件的前後 2 小時範圍內
+              // 條件：新時段結束 + 2hr > 舊事件開始 且 新時段開始 < 舊事件結束 + 2hr
+              const isOverlappingBuffer = (slotEnd + TWO_HOURS_MS > busyStart) && (slotStart < busyEnd + TWO_HOURS_MS);
+              return isOverlappingBuffer;
             });
 
             return !hasConflict;
@@ -500,14 +500,14 @@
         setIsSubmitting(true);
         
         if (!user) {
-          setSubmitError("系統連線中，請稍候再試。");
+          setSubmitError("系統載入中，請稍後...");
           setIsSubmitting(false);
           return;
         }
 
         const isBooked = allBookings.some(b => b.dateRaw === selectedDate && b.time === selectedTime);
         if (isBooked) {
-          setSubmitError("不好意思！此時段剛剛已被其他人預約，請選擇其他時段。");
+          setSubmitError("此時段剛被預約，請選擇其他時間。");
           setIsSubmitting(false);
           return;
         }
@@ -529,18 +529,17 @@
           const bookingsRef = collection(db, 'artifacts', databaseNameId, 'public', 'data', 'bookings');
           await addDoc(bookingsRef, submitData);
           
-          if (GAS_WEBHOOK_URL && GAS_WEBHOOK_URL.startsWith('http')) {
+          if (GAS_WEBHOOK_URL) {
             fetch(GAS_WEBHOOK_URL, {
               method: 'POST',
               body: JSON.stringify(submitData)
-            }).catch(err => console.warn("Webhook background error:", err));
+            }).catch(e => console.warn("Background notification failed"));
           }
 
           setStep(3);
           safeScrollToTop();
         } catch (error) { 
-          console.error(error);
-          setSubmitError("預約失敗，請檢查網路連線。"); 
+          setSubmitError("傳送失敗，請檢查網路。"); 
         } finally { 
           setIsSubmitting(false); 
         }
