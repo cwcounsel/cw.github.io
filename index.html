@@ -204,8 +204,26 @@
       const schedule = useMemo(() => {
         const available = {};
         const today = new Date();
-        const bufferMinutes = 30; 
         
+        // 💡 優化點 1：將緩衝時間設為精準的 60 分鐘。
+        // 當行程 10:00~11:00 結束後，必須隔 60 分鐘，也就是 12:00 才會再開放。
+        const bufferMinutes = 60; 
+        
+        // 💡 優化點 2：將 Firebase 即時預約也轉換成「忙碌時段」加入計算
+        // 這樣在 GAS 尚未同步前，系統也能立刻擋下衝突時段！
+        const realtimeBusy = [...busySlots];
+        allBookings.forEach(b => {
+          if (b.dateRaw && b.time) {
+            const startMs = new Date(`${b.dateRaw}T${b.time}:00+08:00`).getTime();
+            if (!isNaN(startMs)) {
+              realtimeBusy.push({
+                start: new Date(startMs).toISOString(),
+                end: new Date(startMs + 3600000).toISOString() // 協談長度預設為 1 小時
+              });
+            }
+          }
+        });
+
         for (let i = 0; i <= 30; i++) {
           const next = new Date(today);
           next.setDate(today.getDate() + i);
@@ -215,28 +233,30 @@
           const dd = String(next.getDate()).padStart(2, '0');
           const dateStr = `${yyyy}-${mm}-${dd}`;
           
-          const booked = allBookings.filter(b => b.dateRaw === dateStr).map(b => b.time);
-          // 👇 這裡已更新為只有偶數時間 👇
+          // 固定為偶數時間選項
           const allTimeSlots = ['10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
           
           const slots = allTimeSlots.filter(time => {
-            if (booked.includes(time)) return false;
-            
             const slotStart = new Date(`${dateStr}T${time}:00+08:00`).getTime();
             if (isNaN(slotStart)) return false; 
             
+            // 過去時間或太近的時間不開放 (1小時內)
             if (slotStart < Date.now() + 3600000) return false;
 
-            const slotEnd = slotStart + 3600000; 
+            const slotEnd = slotStart + 3600000; // 選項長度為 1 小時
             const buffer = bufferMinutes * 60 * 1000;
 
-            return !busySlots.some(busy => {
+            // 檢查是否與任何行事曆/Firebase忙碌時段衝突
+            return !realtimeBusy.some(busy => {
               const bStart = new Date(busy.start).getTime();
               const bEnd = new Date(busy.end).getTime();
               
               if (bEnd - bStart >= 82800000) {
+                // 排除整日事件
                 return (slotStart >= bStart && slotStart < bEnd) || (slotEnd > bStart && slotEnd <= bEnd);
               }
+              // 如果 bEnd (行程結束) 是 11:00，加上 buffer(60m) 就是 12:00
+              // 如果 slotStart 剛好是 12:00， 12:00 < 12:00 是 False，所以 12 點安全放行！
               return (slotEnd + buffer > bStart) && (slotStart < bEnd + buffer);
             });
           });
@@ -275,10 +295,6 @@
           setSubmitError("系統連線尚未完成，請稍候。"); 
           setIsSubmitting(false); 
           return;
-        }
-
-        if (allBookings.some(b => b.dateRaw === selectedDate && b.time === selectedTime)) {
-          setSubmitError("此時段剛剛被預約了，請換一個。"); setIsSubmitting(false); return;
         }
 
         try {
@@ -411,7 +427,7 @@
                     <div className="flex items-center justify-between bg-teal-50 p-4 rounded-xl border border-teal-100 shadow-sm">
                       <div>
                         <p className="text-teal-800 text-[15px] font-bold">請選擇日期與時段</p>
-                        <p className="text-teal-600 text-xs mt-1">系統已過濾衝突事件與保留間隔</p>
+                        <p className="text-teal-600 text-xs mt-1">系統已自動避開衝突與保留空檔</p>
                       </div>
                       <button 
                         type="button" 
