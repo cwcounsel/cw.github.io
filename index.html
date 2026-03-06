@@ -40,14 +40,15 @@
 
     const { useState, useEffect, useMemo } = React;
 
-    // 👇 【重要】請將這裡的 firebaseConfig 替換成您在 Firebase 後台取得的專屬設定 👇
+    // 👇 【重要】您的專屬 Firebase 設定已填入 👇
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-      apiKey: "請填入您的 API_KEY",
-      authDomain: "請填入您的 AUTH_DOMAIN",
-      projectId: "請填入您的 PROJECT_ID",
-      storageBucket: "請填入您的 STORAGE_BUCKET",
-      messagingSenderId: "請填入您的 MESSAGING_SENDER_ID",
-      appId: "請填入您的 APP_ID"
+      apiKey: "AIzaSyAM4zx1l28YErBfpnPGHCEh6IUmKbDJ0DY",
+      authDomain: "counsel-cw.firebaseapp.com",
+      projectId: "counsel-cw",
+      storageBucket: "counsel-cw.firebasestorage.app",
+      messagingSenderId: "820626619973",
+      appId: "1:820626619973:web:5ba389b98819638113ad2c",
+      measurementId: "G-WRTESNC67C"
     };
     
     // --- Firebase 初始化 ---
