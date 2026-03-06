@@ -161,10 +161,9 @@
         const today = new Date();
         
         // 💡 秘訣：在這裡調整「行程前後的緩衝時間」(單位：分鐘)
-        // 為了避免跨日事件或密集行程互相干擾，我將預設改為 0 分鐘。
-        // 這代表：只要行事曆上該時段是空白的，就可以預約！
-        // 若您希望每場協談之間必須間隔休息時間，可將此數值改為 15 或 30。
-        const bufferMinutes = 0; 
+        // 之前設定 60 分鐘，導致只要有 2~3 個分散的行程，整天就會被判定無法預約！
+        // 現在幫您改為 30 分鐘，您也可以隨時改成 15 或 0。
+        const bufferMinutes = 30; 
         
         for (let i = 0; i <= 30; i++) {
           const next = new Date(today);
@@ -184,28 +183,23 @@
             const slotStart = new Date(`${dateStr}T${time}:00+08:00`).getTime();
             if (isNaN(slotStart)) return false; 
             
-            // 急件防呆：1小時內的時段不開放預約
             if (slotStart < Date.now() + 3600000) return false;
 
             const slotEnd = slotStart + 3600000; 
-            const buffer = bufferMinutes * 60 * 1000; 
+            const buffer = bufferMinutes * 60 * 1000; // 轉換為毫秒
 
             return !busySlots.some(busy => {
               const bStart = new Date(busy.start).getTime();
               const bEnd = new Date(busy.end).getTime();
               
-              // 💡 完美防衝堂公式：
-              // 如果是全天事件 (長度 >= 23 小時)，絕對不加緩衝，精準阻擋重疊的這一天
+              // 💡 【精準修正】判斷是否為「整日事件」或「跨日事件」(時間長度 >= 23小時)
               if (bEnd - bStart >= 82800000) {
-                return (slotStart < bEnd) && (slotEnd > bStart);
+                // 若這個選項時段落在整日事件範圍內，則視為衝突 (不加緩衝，精準阻擋這一天)
+                return (slotStart >= bStart && slotStart < bEnd) || (slotEnd > bStart && slotEnd <= bEnd);
               }
               
-              // 一般跨日事件或幾小時的事件：套用上面設定的緩衝時間 (目前為0，即精準判斷)
-              const slotStartWithBuffer = slotStart - buffer;
-              const slotEndWithBuffer = slotEnd + buffer;
-              
-              // 重疊判斷：我的結束時間(加緩衝) > 對方開始時間 且 我的開始時間(減緩衝) < 對方結束時間
-              return (slotEndWithBuffer > bStart) && (slotStartWithBuffer < bEnd);
+              // 一般幾小時的事件：套用上面設定的緩衝時間
+              return (slotEnd + buffer > bStart) && (slotStart < bEnd + buffer);
             });
           });
           
@@ -346,11 +340,6 @@
       // 防止切換到過去的月份
       const today = new Date();
       const isPrevDisabled = displayMonth.getFullYear() === today.getFullYear() && displayMonth.getMonth() === today.getMonth();
-      
-      // 💡 新增防呆：防止切換到超過一個月 (30天) 的未來月份，讓來訪者不會迷路
-      const maxDate = new Date();
-      maxDate.setDate(today.getDate() + 30);
-      const isNextDisabled = displayMonth.getFullYear() > maxDate.getFullYear() || (displayMonth.getFullYear() === maxDate.getFullYear() && displayMonth.getMonth() >= maxDate.getMonth());
 
       return (
         <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans text-slate-800">
@@ -407,9 +396,9 @@
                       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 sm:p-4">
                         {/* 日曆切換標頭 */}
                         <div className="flex items-center justify-between mb-2">
-                          <button onClick={handlePrevMonth} disabled={isPrevDisabled} className="p-1.5 text-slate-400 hover:text-teal-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors rounded-full hover:bg-slate-50"><ChevronLeft size={18}/></button>
+                          <button onClick={handlePrevMonth} disabled={isPrevDisabled} className="p-1.5 text-slate-400 hover:text-teal-600 disabled:opacity-30 transition-colors rounded-full hover:bg-slate-50"><ChevronLeft size={18}/></button>
                           <span className="font-bold text-slate-700 text-sm tracking-wide">{currentMonthStr}</span>
-                          <button onClick={handleNextMonth} disabled={isNextDisabled} className="p-1.5 text-slate-400 hover:text-teal-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors rounded-full hover:bg-slate-50"><ChevronRight size={18}/></button>
+                          <button onClick={handleNextMonth} className="p-1.5 text-slate-400 hover:text-teal-600 transition-colors rounded-full hover:bg-slate-50"><ChevronRight size={18}/></button>
                         </div>
                         
                         {/* 星期列 (週一為首) */}
