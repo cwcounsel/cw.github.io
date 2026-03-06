@@ -93,7 +93,6 @@
       const [currentMode, setCurrentMode] = useState('book');
       const [step, setStep] = useState(1);
       
-      // ✅ 防止白屏：將選中的日期資料獨立儲存
       const [selectedDate, setSelectedDate] = useState(null);
       const [selectedDateLabel, setSelectedDateLabel] = useState('');
       const [selectedTime, setSelectedTime] = useState(null);
@@ -103,14 +102,12 @@
       const [isSubmitting, setIsSubmitting] = useState(false);
       const [submitError, setSubmitError] = useState(null);
       
-      // ✅ 查詢狀態獨立
       const [queryEmail, setQueryEmail] = useState('');
       const [queryPhone, setQueryPhone] = useState('');
       const [queriedBookings, setQueriedBookings] = useState(null);
       const [isQuerying, setIsQuerying] = useState(false);
       const [cancelConfirmId, setCancelConfirmId] = useState(null);
       
-      // ✅ 欄位調整為 lineName 和 phone
       const [formData, setFormData] = useState({ name: '', lineName: '', phone: '', email: '', notes: '' });
 
       useEffect(() => {
@@ -133,26 +130,22 @@
         const loadBusy = async () => {
           if (!GAS_WEBHOOK_URL || !GAS_WEBHOOK_URL.startsWith('http')) return;
           try {
-            // Attempt to fetch without CORS headers to avoid preflight issues in some environments.
             const res = await fetch(`${GAS_WEBHOOK_URL}?action=getBusy&t=${Date.now()}`);
             if (!res.ok) throw new Error("HTTP Error");
             const data = await res.json();
             if (data && data.busy) setBusySlots(data.busy);
           } catch (e) {
             console.error("Calendar Sync Error", e);
-            // Non-fatal error, just means we can't block off times. Let user proceed anyway.
             console.warn("Could not sync with calendar. The system will rely only on Firebase booked times.");
           }
         };
         loadBusy();
       }, []);
 
-      // 核心時間產生器
       const schedule = useMemo(() => {
         const available = {};
         const today = new Date();
         
-        // ✅ 從今天開始往後推 30 天，不跳過週末
         for (let i = 0; i <= 30; i++) {
           const next = new Date(today);
           next.setDate(today.getDate() + i);
@@ -164,7 +157,6 @@
           
           const booked = allBookings.filter(b => b.dateRaw === dateStr).map(b => b.time);
           
-          // ✅ 支援 10:00 到 22:00
           const allTimeSlots = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'];
           
           const slots = allTimeSlots.filter(time => {
@@ -173,20 +165,17 @@
             const slotStart = new Date(`${dateStr}T${time}:00+08:00`).getTime();
             if (isNaN(slotStart)) return false; 
             
-            // 過去的時間以及未來 1 小時內的時段不開放
             if (slotStart < Date.now() + 3600000) return false;
 
-            const slotEnd = slotStart + 3600000; // 每個協談 1 小時
-            const buffer = 3600000; // ✅ 1 小時緩衝 (代表與其他事件間隔兩小時)
+            const slotEnd = slotStart + 3600000; 
+            const buffer = 3600000; 
 
             return !busySlots.some(busy => {
               const bStart = new Date(busy.start).getTime();
               const bEnd = new Date(busy.end).getTime();
               
-              // ✅ 忽略全天事件 (如果事件超過23小時就不擋)
               if (bEnd - bStart > 82800000) return false;
               
-              // 衝突條件：(新時段結束 + 1小時緩衝) > 舊事件開始 且 (新時段開始) < (舊事件結束 + 1小時緩衝)
               return (slotEnd + buffer > bStart) && (slotStart < bEnd + buffer);
             });
           });
@@ -200,6 +189,16 @@
       }, [allBookings, busySlots]);
 
       const availableDates = useMemo(() => Object.keys(schedule).sort(), [schedule]);
+
+      // ✅ 確保傳送資料格式正確，並使用 POST 發送
+      const sendToGAS = (data) => {
+        if (!GAS_WEBHOOK_URL) return;
+        fetch(GAS_WEBHOOK_URL, {
+          method: 'POST',
+          // 移除 mode: 'no-cors'，因為這會導致無法讀取 Response，且在某些設定下 POST body 會被捨棄
+          body: JSON.stringify(data)
+        }).catch(e => console.error("GAS Notification failed:", e));
+      };
 
       const handleSubmit = async (e) => {
         e.preventDefault();
@@ -218,11 +217,17 @@
 
         try {
           const data = { 
-            action: 'book', dateRaw: selectedDate, dateLabel: selectedDateLabel, time: selectedTime, 
-            ...formData, userId: user.uid, createdAt: new Date().toISOString() 
+            action: 'book', // 標明這是新增預約
+            dateRaw: selectedDate, 
+            dateLabel: selectedDateLabel, 
+            time: selectedTime, 
+            ...formData, 
+            userId: user.uid, 
+            createdAt: new Date().toISOString() 
           };
+          
           await addDoc(collection(db, 'artifacts', databaseNameId, 'public', 'data', 'bookings'), data);
-          if (GAS_WEBHOOK_URL) fetch(GAS_WEBHOOK_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(data) }).catch(() => {});
+          sendToGAS(data); // 呼叫 GAS 寄信並新增行事曆
           setStep(3);
         } catch (e) { setSubmitError("連線不穩，預約失敗"); }
         finally { setIsSubmitting(false); safeScrollToTop(); }
@@ -232,7 +237,6 @@
         e.preventDefault();
         setIsQuerying(true);
         const todayStr = new Date().toISOString().split('T')[0];
-        // ✅ 必須同時輸入 Email 與 手機 才能查詢
         const results = allBookings.filter(b => 
           b.email?.toLowerCase().trim() === queryEmail.toLowerCase().trim() && 
           b.phone?.trim() === queryPhone.trim() &&
@@ -244,17 +248,16 @@
       const handleCancel = async (bookingId) => {
         try {
           const bookingToCancel = queriedBookings.find(b => b.id === bookingId);
+          // 1. 從 Firebase 刪除資料
           await deleteDoc(doc(db, 'artifacts', databaseNameId, 'public', 'data', 'bookings', bookingId));
+          
+          // 2. 更新畫面
           setQueriedBookings(prev => prev.filter(b => b.id !== bookingId));
           setCancelConfirmId(null);
           
-          if (GAS_WEBHOOK_URL) {
-            fetch(GAS_WEBHOOK_URL, { 
-              method: 'POST', 
-              mode: 'no-cors', 
-              body: JSON.stringify({ action: 'cancel', ...bookingToCancel }) 
-            }).catch(e => console.warn(e));
-          }
+          // 3. 呼叫 GAS 寄發取消信件並刪除行事曆
+          sendToGAS({ action: 'cancel', ...bookingToCancel });
+          
           alert("預約已取消成功！");
         } catch (e) { alert("取消失敗，請檢查網路連線"); }
       };
