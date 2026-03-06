@@ -62,6 +62,7 @@
     const CalendarHeart = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 10V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h7"></path><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path><path d="M21.29 14.7a2.43 2.43 0 0 0-2.65-.52c-.3.12-.57.3-.8.53l-.34.34-.35-.34a2.43 2.43 0 0 0-2.65-.53c-.3.12-.56.3-.79.53-.95.94-1 2.53-.2 3.59L17.5 22l4-3.73c.8-1.06.75-2.65-.21-3.57z"></path></svg>;
     const SearchIcon = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
     const TrashIcon = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
+    const RefreshIcon = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>;
 
     const safeScrollToTop = () => { try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {} };
 
@@ -97,6 +98,7 @@
       const [selectedTime, setSelectedTime] = useState(null);
       
       const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
+      const [isRefreshing, setIsRefreshing] = useState(false);
       const [error, setError] = useState(null);
       const [isSubmitting, setIsSubmitting] = useState(false);
       const [submitError, setSubmitError] = useState(null);
@@ -125,19 +127,23 @@
         return () => unsubscribe();
       }, [user]);
 
+      const fetchCalendarData = async () => {
+        if (!GAS_WEBHOOK_URL || !GAS_WEBHOOK_URL.startsWith('http')) return;
+        setIsRefreshing(true);
+        try {
+          const res = await fetch(`${GAS_WEBHOOK_URL}?action=getBusy&t=${Date.now()}`);
+          if (!res.ok) throw new Error("HTTP Error");
+          const data = await res.json();
+          if (data && data.busy) setBusySlots(data.busy);
+        } catch (e) {
+          console.warn("無法同步行事曆，將僅使用 Firebase 紀錄", e);
+        } finally {
+          setIsRefreshing(false);
+        }
+      };
+
       useEffect(() => {
-        const loadBusy = async () => {
-          if (!GAS_WEBHOOK_URL || !GAS_WEBHOOK_URL.startsWith('http')) return;
-          try {
-            const res = await fetch(`${GAS_WEBHOOK_URL}?action=getBusy&t=${Date.now()}`);
-            if (!res.ok) throw new Error("HTTP Error");
-            const data = await res.json();
-            if (data && data.busy) setBusySlots(data.busy);
-          } catch (e) {
-            console.warn("無法同步行事曆，將僅使用 Firebase 紀錄", e);
-          }
-        };
-        loadBusy();
+        fetchCalendarData();
       }, []);
 
       const schedule = useMemo(() => {
@@ -292,13 +298,25 @@
             <div className="p-6">
               {currentMode === 'book' ? (
                 step === 1 ? (
-                  <div className="space-y-6 animate-fade-in-up">
-                    <p className="text-gray-500 text-sm text-center mb-4 bg-teal-50 py-2 rounded-lg text-teal-700 px-2 font-medium">
-                      請選擇日期與時段 <br/><span className="text-xs opacity-80">(系統已過濾行事曆事件與保留間隔)</span>
-                    </p>
+                  <div className="space-y-4 animate-fade-in-up">
+                    <div className="flex items-center justify-between bg-teal-50 p-4 rounded-xl border border-teal-100 shadow-sm">
+                      <div>
+                        <p className="text-teal-800 text-[15px] font-bold">請選擇日期與時段</p>
+                        <p className="text-teal-600 text-xs mt-1">系統已過濾衝突事件與保留間隔</p>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={fetchCalendarData} 
+                        disabled={isRefreshing || isLoadingSchedule} 
+                        className="flex flex-col items-center justify-center py-2 px-3 bg-white rounded-lg shadow-sm border border-teal-100 text-teal-600 hover:bg-teal-600 hover:text-white transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <RefreshIcon size={20} className={isRefreshing ? "animate-spin text-teal-500" : ""} />
+                        <span className="text-[10px] mt-1 font-bold">重整空檔</span>
+                      </button>
+                    </div>
                     
                     <div className="h-[400px] overflow-y-auto pr-2 space-y-4 custom-scrollbar">
-                      {isLoadingSchedule ? (
+                      {isLoadingSchedule || (isRefreshing && Object.keys(schedule).length === 0) ? (
                         <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-3">
                           <Clock className="animate-spin-slow text-teal-500" size={32} />
                           <p className="text-sm font-medium">同步最新空檔中...</p>
