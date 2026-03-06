@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chiao協談預約</title>
+  <title>Job的教牧諮商協談預約系統</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -410,7 +410,7 @@
                 {currentMode === 'book' ? (step === 4 ? "預約成功" : "協談預約") : "查詢與取消紀錄"}
               </h1>
               <p className="text-[10px] text-teal-100 mt-1 opacity-90 tracking-wider font-light">
-                &copy; {new Date().getFullYear()} Chiao. All rights reserved.
+                &copy; {new Date().getFullYear()} Job. All rights reserved.
               </p>
               {currentMode === 'book' && step < 4 && <StepIndicator currentStep={step} />}
             </div>
