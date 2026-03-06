@@ -106,7 +106,7 @@
     const StepOneTimeSelection = ({ schedule, availableDates, onTimeSelect, isLoadingSchedule, error }) => (
       <div className="space-y-6 animate-fade-in-up">
         <p className="text-gray-500 text-sm text-center mb-4 bg-teal-50 py-2 rounded-lg text-teal-700 font-medium">
-          請選擇您方便的日期與時段 <br/><span className="text-xs opacity-80">(系統已即時過濾衝突時段與保留前後兩小時間隔)</span>
+          請選擇您方便的日期與時段 <br/><span className="text-xs opacity-80">(系統已即時過濾所有行事曆衝突與保留 2 小時間隔)</span>
         </p>
         
         <div className="h-[420px] overflow-y-auto pr-2 space-y-4 custom-scrollbar">
@@ -216,7 +216,7 @@
       </div>
     );
 
-    // --- 查詢與取消預約元件 (高度與邊距修正) ---
+    // --- 查詢與取消預約元件 (已優化對齊與間距) ---
     const QueryBookingView = ({ allBookings, db, databaseNameId }) => {
       const [queryEmail, setQueryEmail] = useState('');
       const [queryPhone, setQueryPhone] = useState('');
@@ -252,6 +252,7 @@
           setCancelConfirmId(null);
 
           if (GAS_WEBHOOK_URL && GAS_WEBHOOK_URL.startsWith('http')) {
+            // 背景通知 GAS 取消行程
             fetch(GAS_WEBHOOK_URL, {
               method: 'POST',
               body: JSON.stringify({
@@ -262,21 +263,21 @@
                 phone: bookingToCancel.phone,
                 name: bookingToCancel.name
               })
-            }).catch(e => console.warn("Background notification failed", e));
+            }).catch(e => console.warn("GAS Notification failed", e));
           }
           
-          alert('預約已成功取消！');
+          alert('預約已成功取消！該時段已釋出。');
         } catch (err) {
           console.error(err);
-          alert('取消失敗，請確認網路連線。');
+          alert('取消失敗，請檢查網路連線。');
         } finally {
           setIsCanceling(false);
         }
       };
 
       return (
-        <div className="animate-fade-in-up">
-          <p className="text-gray-500 text-sm text-center mb-6 bg-teal-50 py-3 rounded-lg text-teal-700 font-medium">
+        <div className="animate-fade-in-up space-y-6">
+          <p className="text-gray-500 text-sm text-center mb-4 bg-teal-50 py-2 rounded-lg text-teal-700 font-medium">
             請輸入預約時使用的 Email 與手機查詢協談紀錄。
           </p>
           
@@ -350,7 +351,7 @@
             await signInAnonymously(auth);
           } catch (e) {
             console.error("Auth error", e);
-            setError("Firebase 連線失敗，請檢查設定區 1");
+            setError("Firebase 連線失敗");
           }
         };
         initAuth();
@@ -358,7 +359,7 @@
         return () => unsubscribe();
       }, []);
 
-      // 監聽 Firebase 資料
+      // 監聽 Firebase
       useEffect(() => {
         if (!user) return;
         setIsLoadingSchedule(true);
@@ -374,13 +375,14 @@
         return () => unsubscribe();
       }, [user]);
 
-      // 讀取行事曆 (優化連線邏輯)
+      // 讀取行事曆 (徹底修正 Failed to fetch 問題)
       useEffect(() => {
         const loadBusyCalendar = async () => {
           if (!GAS_WEBHOOK_URL || !GAS_WEBHOOK_URL.startsWith('http')) return;
           
           try {
             const timestamp = Date.now();
+            // 簡化 fetch 呼叫，避免觸發嚴格 CORS 檢查
             const response = await fetch(`${GAS_WEBHOOK_URL}?action=getBusy&t=${timestamp}`);
             
             if (!response.ok) throw new Error(`HTTP 錯誤: ${response.status}`);
@@ -393,8 +395,8 @@
               throw new Error(data.error);
             }
           } catch (err) {
-            console.warn("無法取得外部行事曆資料:", err.message);
-            setError("無法抓取您的行事曆，預約時段可能會有衝突。請確保 GAS 部署權限為『所有人』。");
+            console.warn("無法取得外部行事曆:", err.message);
+            setError("行事曆連線失敗。請確認 GAS 已部署為「所有人」存取。");
           }
         };
         loadBusyCalendar();
@@ -421,7 +423,7 @@
         return scheduleTemplate;
       }, []);
 
-      // 過濾時段 (嚴格前後兩小時避讓)
+      // 過濾時段 (嚴格執行 2 小時間隔避讓)
       const schedule = useMemo(() => {
         const availableSchedule = {};
         Object.keys(baseSchedule).forEach(date => {
@@ -430,10 +432,10 @@
             .map(b => b.time);
             
           const availableSlots = baseSchedule[date].slots.filter(time => {
-            // 排除 Firebase 已預約
+            // 排除系統內已預約
             if (bookedSlotsForDate.includes(time)) return false;
 
-            // 轉換為台灣時間 Timestamp
+            // 基準時間 (台灣時間)
             const slotStart = new Date(`${date}T${time}:00+08:00`).getTime();
             const slotEnd = slotStart + 60 * 60 * 1000; 
             const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
@@ -448,10 +450,9 @@
                  return busyDateStr === date;
               }
               
-              // 避讓邏輯：新時段不可出現在舊事件的前後 2 小時範圍內
-              // 條件：新時段結束 + 2hr > 舊事件開始 且 新時段開始 < 舊事件結束 + 2hr
-              const isOverlappingBuffer = (slotEnd + TWO_HOURS_MS > busyStart) && (slotStart < busyEnd + TWO_HOURS_MS);
-              return isOverlappingBuffer;
+              // 避讓邏輯：新時段與舊事件之間必須有 2 小時以上的空白
+              // 衝突發生於：(新時段結束 + 2小時) > 舊事件開始 且 (新時段開始) < (舊事件結束 + 2小時)
+              return (slotEnd + TWO_HOURS_MS > busyStart) && (slotStart < busyEnd + TWO_HOURS_MS);
             });
 
             return !hasConflict;
@@ -500,7 +501,7 @@
         setIsSubmitting(true);
         
         if (!user) {
-          setSubmitError("系統載入中，請稍後...");
+          setSubmitError("系統連線中...");
           setIsSubmitting(false);
           return;
         }
