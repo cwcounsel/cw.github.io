@@ -31,7 +31,7 @@
 
     const { useState, useEffect, useMemo } = React;
 
-    // 👇 【設定區 1】 您的專屬 Firebase 設定 👇
+    // 👇 【設定區 1】 您的 Firebase 設定 👇
     const firebaseConfig = {
       apiKey: "AIzaSyAM4zx1l28YErBfpnPGHCEh6IUmKbDJ0DY",
       authDomain: "counsel-cw.firebaseapp.com",
@@ -42,7 +42,7 @@
       measurementId: "G-WRTESNC67C"
     };
 
-    // 👇 【設定區 2】 您的 Google Apps Script (GAS) 網址 👇
+    // 👇 【設定區 2】 您的 GAS 網址 👇
     const GAS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwud980ZnFReI9YkcX2sEpcn29eIKSGLUTOxd9-KBnXztlz3OjPgihY7ltMGqS8CvH2Xw/exec";
     
     const app = initializeApp(firebaseConfig);
@@ -50,7 +50,6 @@
     const db = getFirestore(app);
     const databaseNameId = "my-booking-app"; 
 
-    // --- SVG 圖示元件 ---
     const CalendarIcon = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
     const Clock = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>;
     const User = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
@@ -135,8 +134,7 @@
             const data = await res.json();
             if (data && data.busy) setBusySlots(data.busy);
           } catch (e) {
-            console.error("Calendar Sync Error", e);
-            console.warn("Could not sync with calendar. The system will rely only on Firebase booked times.");
+            console.warn("無法同步行事曆，將僅使用 Firebase 紀錄", e);
           }
         };
         loadBusy();
@@ -156,7 +154,6 @@
           const dateStr = `${yyyy}-${mm}-${dd}`;
           
           const booked = allBookings.filter(b => b.dateRaw === dateStr).map(b => b.time);
-          
           const allTimeSlots = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'];
           
           const slots = allTimeSlots.filter(time => {
@@ -173,9 +170,7 @@
             return !busySlots.some(busy => {
               const bStart = new Date(busy.start).getTime();
               const bEnd = new Date(busy.end).getTime();
-              
               if (bEnd - bStart > 82800000) return false;
-              
               return (slotEnd + buffer > bStart) && (slotStart < bEnd + buffer);
             });
           });
@@ -190,14 +185,27 @@
 
       const availableDates = useMemo(() => Object.keys(schedule).sort(), [schedule]);
 
-      // ✅ 確保傳送資料格式正確，並使用 POST 發送
-      const sendToGAS = (data) => {
+      // 🚨 修復關鍵：隔離送出的資料，保證 GET 參數永遠正確
+      const sendToGAS = (actionType, rawData) => {
         if (!GAS_WEBHOOK_URL) return;
-        fetch(GAS_WEBHOOK_URL, {
-          method: 'POST',
-          // 移除 mode: 'no-cors'，因為這會導致無法讀取 Response，且在某些設定下 POST body 會被捨棄
-          body: JSON.stringify(data)
-        }).catch(e => console.error("GAS Notification failed:", e));
+        
+        const params = new URLSearchParams({
+            action: actionType, // 絕對強制寫入 action，不允許被覆蓋
+            name: rawData.name || '',
+            email: rawData.email || '',
+            phone: rawData.phone || '',
+            lineName: rawData.lineName || '',
+            dateRaw: rawData.dateRaw || '',
+            dateLabel: rawData.dateLabel || '',
+            time: rawData.time || '',
+            notes: rawData.notes || '',
+            t: Date.now()
+        }).toString();
+
+        fetch(`${GAS_WEBHOOK_URL}?${params}`, {
+          method: 'GET',
+          mode: 'no-cors'
+        }).catch(e => console.warn(e));
       };
 
       const handleSubmit = async (e) => {
@@ -216,20 +224,21 @@
         }
 
         try {
-          const data = { 
-            action: 'book', // 標明這是新增預約
+          const payload = { 
+            action: 'book', // 存進資料庫的標記
             dateRaw: selectedDate, 
             dateLabel: selectedDateLabel, 
             time: selectedTime, 
-            ...formData, 
-            userId: user.uid, 
-            createdAt: new Date().toISOString() 
+            ...formData
           };
           
-          await addDoc(collection(db, 'artifacts', databaseNameId, 'public', 'data', 'bookings'), data);
-          sendToGAS(data); // 呼叫 GAS 寄信並新增行事曆
+          // 寫入 Firebase
+          await addDoc(collection(db, 'artifacts', databaseNameId, 'public', 'data', 'bookings'), { ...payload, userId: user.uid, createdAt: new Date().toISOString() });
+          
+          // 呼叫 GAS (明確指定為 book)
+          sendToGAS('book', payload);
           setStep(3);
-        } catch (e) { setSubmitError("連線不穩，預約失敗"); }
+        } catch (e) { setSubmitError("預約失敗"); }
         finally { setIsSubmitting(false); safeScrollToTop(); }
       };
 
@@ -248,15 +257,15 @@
       const handleCancel = async (bookingId) => {
         try {
           const bookingToCancel = queriedBookings.find(b => b.id === bookingId);
-          // 1. 從 Firebase 刪除資料
+          // 1. Firebase 刪除
           await deleteDoc(doc(db, 'artifacts', databaseNameId, 'public', 'data', 'bookings', bookingId));
           
           // 2. 更新畫面
           setQueriedBookings(prev => prev.filter(b => b.id !== bookingId));
           setCancelConfirmId(null);
           
-          // 3. 呼叫 GAS 寄發取消信件並刪除行事曆
-          sendToGAS({ action: 'cancel', ...bookingToCancel });
+          // 3. 🚨 呼叫 GAS (強制指定 action 為 cancel，不管資料庫原來存什麼)
+          sendToGAS('cancel', bookingToCancel);
           
           alert("預約已取消成功！");
         } catch (e) { alert("取消失敗，請檢查網路連線"); }
