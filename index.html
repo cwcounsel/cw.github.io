@@ -279,12 +279,12 @@
       };
 
       return (
-        <div className="animate-fade-in-up space-y-6">
-          <p className="text-gray-500 text-sm text-center mb-4 bg-teal-50 py-2 rounded-lg text-teal-700 font-medium">
+        <div className="animate-fade-in-up">
+          <p className="text-gray-500 text-sm text-center mb-6 bg-teal-50 py-3 rounded-lg text-teal-700 font-medium">
             請輸入您預約時使用的 Email 與 手機號碼 來查詢或取消您的協談時間。
           </p>
           
-          <form onSubmit={handleQuery} className="space-y-3">
+          <form onSubmit={handleQuery} className="space-y-4">
             <input 
               type="email" required placeholder="請輸入 Email"
               value={queryEmail} onChange={e => setQueryEmail(e.target.value)}
@@ -295,13 +295,13 @@
               value={queryPhone} onChange={e => setQueryPhone(e.target.value)}
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none transition-all bg-gray-50 focus:bg-white"
             />
-            <button type="submit" disabled={isQuerying || !queryEmail || !queryPhone} className="w-full py-3 bg-teal-600 text-white rounded-xl font-bold hover:bg-teal-700 disabled:bg-gray-400 transition-colors flex items-center justify-center">
+            <button type="submit" disabled={isQuerying || !queryEmail || !queryPhone} className="w-full py-3.5 mt-2 bg-teal-600 text-white rounded-xl font-bold hover:bg-teal-700 disabled:bg-gray-400 transition-colors flex items-center justify-center">
               {isQuerying ? <Clock className="animate-spin mr-2" size={20} /> : <SearchIcon className="mr-2" size={20} />} 查詢紀錄
             </button>
           </form>
 
           {queriedBookings !== null && (
-            <div className="mt-6 space-y-4">
+            <div className="mt-8 space-y-4">
               <h3 className="text-lg font-bold text-gray-800 border-b pb-2">查詢結果</h3>
               {queriedBookings.length === 0 ? (
                 <p className="text-gray-500 text-center py-4">目前沒有找到未來有效的預約紀錄喔！</p>
@@ -628,3 +628,122 @@
   </script>
 </body>
 </html>
+```
+
+### 步驟二：更新 Google Apps Script (後端) 以讀取「所有日曆」
+
+請回到您的 Google Apps Script 專案，將程式碼替換為以下版本。
+這個版本會自動找出您有權限編輯的 **「所有日曆」**（不只是預設日曆或單一特定日曆），並把所有的事件都回傳給網頁進行避讓。但是，當有新預約進來時，它還是會把新行程寫入您在 `TARGET_CALENDAR_ID` 指定的那個日曆中。
+
+```javascript
+// 👇 1. 您的管理者 Email (接收新預約/取消通知用) 👇
+const ADMIN_EMAIL = 'your-email@gmail.com'; 
+
+// 👇 2. 新預約要「寫入」哪一個特定日曆？ 👇
+// (填寫您的特定日曆ID，例如：counsel-cw@group.calendar.google.com)
+// 如果留空或找不到，會預設寫入您的主要日曆。
+const TARGET_CALENDAR_ID = '在此貼上您的特定日曆ID@group.calendar.google.com'; 
+
+function setup() {
+  // 開通所有日曆讀取權限與寄信權限
+  CalendarApp.getAllCalendars();
+  GmailApp.getInboxUnreadCount(); 
+  console.log("✅ 授權成功！請記得重新發布『新版本』的網頁應用程式。");
+}
+
+function doOptions(e) {
+  return ContentService.createTextOutput('')
+    .setHeader('Access-Control-Allow-Origin', '*')
+    .setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    .setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+function doGet(e) {
+  try {
+    if (e.parameter.action === 'getBusy') {
+      let now = new Date();
+      let end = new Date();
+      end.setDate(now.getDate() + 20); 
+      
+      let allBusySlots = [];
+      
+      // 取得您擁有的「所有」日曆
+      let calendars = CalendarApp.getAllOwnedCalendars();
+      
+      for (let i = 0; i < calendars.length; i++) {
+        let events = calendars[i].getEvents(now, end);
+        for (let j = 0; j < events.length; j++) {
+          allBusySlots.push({
+            title: events[j].getTitle(),
+            start: events[j].getStartTime().toISOString(),
+            end: events[j].getEndTime().toISOString()
+          });
+        }
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({ busy: allBusySlots }))
+        .setMimeType(ContentService.MimeType.JSON)
+        .setHeader('Access-Control-Allow-Origin', '*');
+    }
+    return ContentService.createTextOutput("OK");
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON)
+      .setHeader('Access-Control-Allow-Origin', '*');
+  }
+}
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    
+    // 決定要操作哪一個日曆
+    let targetCalendar = null;
+    try { targetCalendar = CalendarApp.getCalendarById(TARGET_CALENDAR_ID); } catch(err) {}
+    if (!targetCalendar) targetCalendar = CalendarApp.getDefaultCalendar();
+
+    // === 處理取消預約 ===
+    if (data.action === 'cancel') {
+      const startTimeStr = data.dateRaw + 'T' + data.time + ':00+08:00';
+      const startTime = new Date(startTimeStr);
+      const endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+      
+      // 在目標日曆中尋找並刪除事件
+      let events = targetCalendar.getEvents(startTime, endTime);
+      for (let ev of events) {
+        if (ev.getTitle().includes(data.name) || ev.getDescription().includes(data.email)) {
+          ev.deleteEvent();
+          break;
+        }
+      }
+      
+      GmailApp.sendEmail(ADMIN_EMAIL, `【取消通知】${data.name} 已取消協談`, `預約者 ${data.name}\n電話：${data.phone}\n信箱：${data.email}\n已取消 ${data.dateRaw} ${data.time} 的協談。`);
+      GmailApp.sendEmail(data.email, `【取消成功】線上協談取消通知`, `親愛的 ${data.name}：\n\n您已成功取消 ${data.dateRaw} ${data.time} 的線上協談。\n歡迎您未來有需要時再次預約！`);
+      
+      return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON).setHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    // === 處理新增預約 ===
+    const { name, email, phone, dateRaw, dateLabel, time, notes } = data;
+    const startTimeStr = dateRaw + 'T' + time + ':00+08:00';
+    const startTime = new Date(startTimeStr);
+    const endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+    
+    const eventTitle = `協談線上預約 - ${name}`;
+    const eventDesc = `預約者：${name}\n電話：${phone}\n信箱：${email}\n備註：\n${notes || '無'}`;
+    targetCalendar.createEvent(eventTitle, startTime, endTime, { description: eventDesc });
+
+    const adminSubject = `【新預約通知】${name} 新增了協談線上預約`;
+    const adminBody = `您好，有新的協談預約！\n\n📅 日期：${dateLabel}\n⏰ 時間：${time}\n👤 姓名：${name}\n📱 電話：${phone}\n✉️ 信箱：${email}\n📝 備註：${notes || '無'}\n\n此行程已自動加入您的 Google 行事曆。`;
+    GmailApp.sendEmail(ADMIN_EMAIL, adminSubject, adminBody);
+
+    const userSubject = `【預約成功通知】您的協談線上預約已確認`;
+    const userBody = `親愛的 ${name} 您好：\n\n您已成功預約線上協談！以下是您的預約資訊：\n\n📅 日期：${dateLabel}\n⏰ 時間：${time}\n\n若您臨時有事需要取消預約，請回到我們的預約網站，點選「查詢 / 取消」頁籤，並輸入您的 Email (${email}) 與 手機號碼 (${phone}) 即可取消。\n\n期待與您的會談！`;
+    GmailApp.sendEmail(email, userSubject, userBody);
+
+    return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON).setHeader('Access-Control-Allow-Origin', '*');
+
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: error.toString() })).setMimeType(ContentService.MimeType.JSON).setHeader('Access-Control-Allow-Origin', '*');
+  }
+}
