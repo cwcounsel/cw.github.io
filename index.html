@@ -5,21 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>線上協談預約系統</title>
   
-  <!-- 引入 Tailwind CSS 進行快速排版 -->
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- 引入 React 核心庫 -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  
-  <!-- 引入 Babel 用來在瀏覽器中編譯 JSX -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
     .custom-scrollbar::-webkit-scrollbar { width: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
     .animate-fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
@@ -51,19 +45,21 @@
     // 👇 【設定區 2】 您的 Google Apps Script (GAS) 網址 👇
     const GAS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwud980ZnFReI9YkcX2sEpcn29eIKSGLUTOxd9-KBnXztlz3OjPgihY7ltMGqS8CvH2Xw/exec";
     
-    // --- Firebase 初始化 ---
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
     const databaseNameId = "my-booking-app"; 
 
-    // --- 圖示元件 ---
+    // --- SVG 圖示元件 ---
     const CalendarIcon = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
     const Clock = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>;
     const User = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
-    const PhoneIcon = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>;
+    const MessageCircle = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"></path></svg>;
     const CheckCircle = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>;
     const ChevronLeft = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="15 18 9 12 15 6"></polyline></svg>;
+    const Mail = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>;
+    const FileText = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>;
+    const CalendarHeart = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 10V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h7"></path><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path><path d="M21.29 14.7a2.43 2.43 0 0 0-2.65-.52c-.3.12-.57.3-.8.53l-.34.34-.35-.34a2.43 2.43 0 0 0-2.65-.53c-.3.12-.56.3-.79.53-.95.94-1 2.53-.2 3.59L17.5 22l4-3.73c.8-1.06.75-2.65-.21-3.57z"></path></svg>;
     const SearchIcon = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
     const TrashIcon = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
 
@@ -75,85 +71,18 @@
       </div>
     );
 
-    const InputField = ({ label, icon: Icon, required, type = "text", ...props }) => (
+    // 修正 InputField：確保 note 參數被安全處理，不會引發 DOM 警告
+    const InputField = ({ label, icon: Icon, required, type = "text", note, ...props }) => (
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
           {Icon && <Icon size={16} className="mr-1 text-teal-600" />} {label} {required && <span className="text-red-500 ml-1">*</span>}
+          {note && <span className="text-gray-400 text-xs ml-2">{note}</span>}
         </label>
-        {type === 'textarea' ? <textarea {...props} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none bg-gray-50 text-base" /> : <input type={type} required={required} {...props} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none bg-gray-50 text-base" />}
-      </div>
-    );
-
-    const StepOneTimeSelection = ({ schedule, availableDates, onTimeSelect, isLoadingSchedule, error }) => (
-      <div className="space-y-6 animate-fade-in-up">
-        <p className="text-gray-500 text-sm text-center mb-4 bg-teal-50 py-2 rounded-lg text-teal-700 font-medium px-2">
-          請選擇您方便的日期與時段 <br/><span className="text-xs opacity-80">(系統已即時過濾所有行事曆衝突與保留前後 2 小時間隔)</span>
-        </p>
-        
-        <div className="h-[400px] overflow-y-auto pr-2 space-y-4 custom-scrollbar">
-          {isLoadingSchedule ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-3">
-              <Clock className="animate-spin-slow text-teal-500" size={32} />
-              <p className="text-sm font-medium">同步最新空檔中...</p>
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center h-full text-red-500 space-y-3 p-6 text-center bg-red-50 rounded-xl border border-red-100 mx-2">
-              <p className="font-bold text-lg">系統同步失敗</p>
-              <p className="text-sm text-red-600 whitespace-pre-line leading-relaxed">{error}</p>
-            </div>
-          ) : availableDates.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-2"><p>近期已無可用時段，請稍後再試</p></div>
-          ) : (
-            availableDates.map(date => (
-              <div key={date} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center text-teal-700 font-semibold mb-3 border-b border-gray-50 pb-2">
-                  <CalendarIcon size={18} className="mr-2" /> {schedule[date]?.label || date}
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  {schedule[date]?.slots?.map(time => (
-                    <button type="button" key={time} onClick={() => onTimeSelect(date, time)} className="py-2.5 px-2 text-sm font-medium rounded-lg border border-teal-100 text-teal-700 bg-teal-50/50 hover:bg-teal-600 hover:text-white hover:border-teal-600 transition-all focus:ring-4 focus:ring-teal-200 focus:outline-none active:scale-95">{time}</button>
-                  ))}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    );
-
-    const StepTwoForm = ({ schedule, selectedDate, selectedTime, formData, onChange, onSubmit, isSubmitting, submitError, onBack }) => (
-      <div className="animate-fade-in-right">
-        <div className="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl p-5 mb-6 flex items-center justify-between border border-teal-100 shadow-sm">
-          <div>
-            <p className="text-xs text-teal-600 font-bold mb-1 tracking-wider">已選時段</p>
-            <p className="text-gray-800 font-bold text-lg">
-              {schedule[selectedDate]?.label || ''} <span className="text-teal-700 ml-2">{selectedTime}</span>
-            </p>
-          </div>
-          <div className="bg-white p-2 rounded-full shadow-sm">
-            <Clock className="text-teal-500" size={24} />
-          </div>
-        </div>
-
-        {submitError && (
-          <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-200 flex items-center">
-            <span className="mr-2">⚠️</span> {submitError}
-          </div>
+        {type === 'textarea' ? (
+          <textarea {...props} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none bg-gray-50 text-base" />
+        ) : (
+          <input type={type} required={required} {...props} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none bg-gray-50 text-base" />
         )}
-
-        <form onSubmit={onSubmit} className="space-y-2">
-          <InputField label="真實姓名" icon={User} required name="name" value={formData.name} onChange={onChange} placeholder="請輸入您的姓名" />
-          <InputField label="手機號碼" icon={PhoneIcon} required type="tel" name="phone" value={formData.phone} onChange={onChange} placeholder="用於查詢與取消預約" />
-          <InputField label="電子郵件" icon={Mail} required type="email" name="email" value={formData.email} onChange={onChange} placeholder="接收確認通知信件" />
-          <InputField label="協談備註" icon={FileText} type="textarea" note="(選填)" name="notes" rows="3" value={formData.notes} onChange={onChange} placeholder="簡單描述您想討論的議題..." />
-
-          <div className="flex gap-3 mt-8">
-            <button type="button" onClick={onBack} disabled={isSubmitting} className="w-1/3 py-3.5 rounded-xl font-bold text-teal-700 bg-teal-100 hover:bg-teal-200 transition-all flex justify-center items-center">上一步</button>
-            <button type="submit" disabled={isSubmitting} className={`w-2/3 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex justify-center items-center ${isSubmitting ? 'bg-gray-400 cursor-not-allowed shadow-none' : 'bg-teal-600 hover:bg-teal-700 active:scale-95'}`}>
-              {isSubmitting ? <span className="flex items-center"><Clock className="animate-spin mr-2" size={18} /> 處理中...</span> : '確認送出'}
-            </button>
-          </div>
-        </form>
       </div>
     );
 
@@ -163,28 +92,26 @@
       const [busySlots, setBusySlots] = useState([]);
       const [currentMode, setCurrentMode] = useState('book');
       const [step, setStep] = useState(1);
+      
       const [selectedDate, setSelectedDate] = useState(null);
+      const [selectedDateLabel, setSelectedDateLabel] = useState('');
       const [selectedTime, setSelectedTime] = useState(null);
+      
       const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
       const [error, setError] = useState(null);
       const [isSubmitting, setIsSubmitting] = useState(false);
       const [submitError, setSubmitError] = useState(null);
-      const [formData, setFormData] = useState({ name: '', phone: '', email: '', notes: '' });
+      
+      const [formData, setFormData] = useState({ name: '', lineId: '', email: '', notes: '' });
 
-      // 初始化 Firebase
       useEffect(() => {
-        const initAuth = async () => {
-          try { await signInAnonymously(auth); } catch (e) { setError("Firebase 初始化失敗"); }
-        };
-        initAuth();
+        signInAnonymously(auth).catch(() => setError("Firebase 連線失敗"));
         const unsubscribe = onAuthStateChanged(auth, setUser);
         return () => unsubscribe();
       }, []);
 
-      // 監聽 Firebase 資料
       useEffect(() => {
         if (!user) return;
-        setIsLoadingSchedule(true);
         const bookingsRef = collection(db, 'artifacts', databaseNameId, 'public', 'data', 'bookings');
         const unsubscribe = onSnapshot(bookingsRef, (snapshot) => {
           setAllBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -193,66 +120,100 @@
         return () => unsubscribe();
       }, [user]);
 
-      // 讀取行事曆繁忙資料
       useEffect(() => {
         const loadBusy = async () => {
           if (!GAS_WEBHOOK_URL || !GAS_WEBHOOK_URL.startsWith('http')) return;
           try {
-            const response = await fetch(`${GAS_WEBHOOK_URL}?action=getBusy&t=${Date.now()}`);
-            if (!response.ok) throw new Error("行事曆連線失敗");
-            const data = await response.json();
+            const res = await fetch(`${GAS_WEBHOOK_URL}?action=getBusy&t=${Date.now()}`);
+            if (!res.ok) throw new Error("HTTP Error");
+            const data = await res.json();
             if (data && data.busy) setBusySlots(data.busy);
-          } catch (err) { setError("無法讀取 Google 行事曆，請確保 GAS 設為『所有人』。"); }
+          } catch (e) {
+            console.error("Calendar Sync Error", e);
+            setError("無法讀取行事曆狀態，請確定 GAS 設為『所有人』。");
+          }
         };
         loadBusy();
       }, []);
 
+      // 核心時間產生器
       const schedule = useMemo(() => {
-        const template = {};
+        const available = {};
         const today = new Date();
-        for (let i = 1; i <= 14; i++) {
+        
+        // 從今天開始 (0) 往後推 30 天，也就是一個月內！不跳過週末！
+        for (let i = 0; i <= 30; i++) {
           const next = new Date(today);
           next.setDate(today.getDate() + i);
-          if (next.getDay() === 0 || next.getDay() === 6) continue;
-          const dateStr = next.toISOString().split('T')[0];
+          
+          // 使用本地時區轉換出正確的 YYYY-MM-DD
+          const yyyy = next.getFullYear();
+          const mm = String(next.getMonth() + 1).padStart(2, '0');
+          const dd = String(next.getDate()).padStart(2, '0');
+          const dateStr = `${yyyy}-${mm}-${dd}`;
+          
           const booked = allBookings.filter(b => b.dateRaw === dateStr).map(b => b.time);
-          const slots = ['09:00', '11:00', '14:00', '16:00', '19:00'].filter(time => {
+          
+          // 支援到 22:00
+          const allTimeSlots = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'];
+          
+          const slots = allTimeSlots.filter(time => {
             if (booked.includes(time)) return false;
+            
             const slotStart = new Date(`${dateStr}T${time}:00+08:00`).getTime();
-            const slotEnd = slotStart + 3600000;
-            const buffer = 7200000; // 前後 2 小時
+            if (isNaN(slotStart)) return false; 
+            
+            // 過去的時間以及未來 1 小時內的急件都不開放預約
+            if (slotStart < Date.now() + 3600000) return false;
+
+            const slotEnd = slotStart + 3600000; // 每個協談 1 小時
+            const buffer = 3600000; // 1 小時緩衝 (代表事件間隔兩小時)
 
             return !busySlots.some(busy => {
               const bStart = new Date(busy.start).getTime();
               const bEnd = new Date(busy.end).getTime();
-              // 全天事件判定
-              if (bEnd - bStart > 80000000) return new Date(bStart + 28800000).toISOString().split('T')[0] === dateStr;
-              // 雙向避讓判斷
+              
+              // 全天事件判斷：如果該事件大於23小時，視為全天鎖定
+              if (bEnd - bStart > 82800000) {
+                 const bDateStr = new Date(bStart + 28800000).toISOString().split('T')[0];
+                 if (bDateStr === dateStr) return true;
+              }
+              
+              // 衝突條件：(新時段結束 + 1小時緩衝) > 舊事件開始 且 (新時段開始) < (舊事件結束 + 1小時緩衝)
               return (slotEnd + buffer > bStart) && (slotStart < bEnd + buffer);
             });
           });
+          
           if (slots.length > 0) {
             const days = ['日','一','二','三','四','五','六'];
-            template[dateStr] = { label: `${next.getMonth() + 1}月${next.getDate()}日 (${days[next.getDay()]})`, slots };
+            available[dateStr] = { label: `${next.getMonth() + 1}月${next.getDate()}日 (${days[next.getDay()]})`, slots };
           }
         }
-        return template;
+        return available;
       }, [allBookings, busySlots]);
-
-      // 確保變數在使用前正確宣告
-      const availableDates = useMemo(() => Object.keys(schedule).sort(), [schedule]);
 
       const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
         setSubmitError(null);
+        
+        if (!user) {
+          setSubmitError("系統連線尚未完成，請稍候。"); 
+          setIsSubmitting(false); 
+          return;
+        }
+
         if (allBookings.some(b => b.dateRaw === selectedDate && b.time === selectedTime)) {
           setSubmitError("此時段剛剛被預約了，請換一個。"); setIsSubmitting(false); return;
         }
+
         try {
-          const data = { action: 'book', dateRaw: selectedDate, dateLabel: schedule[selectedDate]?.label, time: selectedTime, ...formData, userId: user.uid, createdAt: new Date().toISOString() };
+          const data = { 
+            action: 'book', dateRaw: selectedDate, dateLabel: selectedDateLabel, time: selectedTime, 
+            ...formData, userId: user.uid, createdAt: new Date().toISOString() 
+          };
           await addDoc(collection(db, 'artifacts', databaseNameId, 'public', 'data', 'bookings'), data);
-          if (GAS_WEBHOOK_URL) fetch(GAS_WEBHOOK_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(data) }).catch(e => console.warn(e));
+          if (GAS_WEBHOOK_URL) fetch(GAS_WEBHOOK_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(data) }).catch(() => {});
           setStep(3);
         } catch (e) { setSubmitError("連線不穩，預約失敗"); }
         finally { setIsSubmitting(false); safeScrollToTop(); }
@@ -262,16 +223,16 @@
         if (!confirm(`確定要取消 ${booking.dateLabel} ${booking.time} 的協談嗎？`)) return;
         try {
           await deleteDoc(doc(db, 'artifacts', databaseNameId, 'public', 'data', 'bookings', booking.id));
-          if (GAS_WEBHOOK_URL) fetch(GAS_WEBHOOK_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'cancel', ...booking }) }).catch(e => console.warn(e));
+          if (GAS_WEBHOOK_URL) fetch(GAS_WEBHOOK_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'cancel', ...booking }) }).catch(() => {});
           alert("預約已取消成功！");
-        } catch (e) { alert("取消失敗，請重試"); }
+        } catch (e) { alert("取消失敗，請檢查網路連線"); }
       };
 
       return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans text-slate-800">
           <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
             <div className="bg-teal-600 text-white p-6 relative">
-              {step === 2 && currentMode === 'book' && <button onClick={() => setStep(1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-full"><ChevronLeft size={24} /></button>}
+              {step === 2 && currentMode === 'book' && <button onClick={() => setStep(1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-full transition-colors"><ChevronLeft size={24} /></button>}
               <h1 className="text-xl font-bold text-center flex items-center justify-center">
                 {currentMode === 'book' ? (step === 3 ? "預約成功" : "預約協談時間") : "查詢與取消紀錄"}
               </h1>
@@ -280,40 +241,106 @@
 
             {step === 1 && (
               <div className="flex bg-slate-50 border-b border-slate-100">
-                <button onClick={() => setCurrentMode('book')} className={`flex-1 py-4 text-sm font-bold ${currentMode === 'book' ? 'bg-white text-teal-600 border-b-2 border-teal-600' : 'text-slate-400'}`}>我要預約</button>
-                <button onClick={() => setCurrentMode('query')} className={`flex-1 py-4 text-sm font-bold ${currentMode === 'query' ? 'bg-white text-teal-600 border-b-2 border-teal-600' : 'text-slate-400'}`}>查詢 / 取消</button>
+                <button onClick={() => setCurrentMode('book')} className={`flex-1 py-4 text-sm font-bold transition-colors ${currentMode === 'book' ? 'bg-white text-teal-600 border-b-2 border-teal-600' : 'text-slate-400'}`}>我要預約</button>
+                <button onClick={() => setCurrentMode('query')} className={`flex-1 py-4 text-sm font-bold transition-colors ${currentMode === 'query' ? 'bg-white text-teal-600 border-b-2 border-teal-600' : 'text-slate-400'}`}>查詢 / 取消</button>
               </div>
             )}
 
             <div className="p-6">
               {currentMode === 'book' ? (
                 step === 1 ? (
-                  <StepOneTimeSelection schedule={schedule} availableDates={availableDates} onTimeSelect={(d, t) => { setSelectedDate(d); setSelectedTime(t); setStep(2); safeScrollToTop(); }} isLoadingSchedule={isLoadingSchedule} error={error} />
+                  <div className="space-y-6 animate-fade-in-up">
+                    <p className="text-gray-500 text-sm text-center mb-4 bg-teal-50 py-2 rounded-lg text-teal-700 px-2 font-medium">
+                      請選擇日期與時段 <br/><span className="text-xs opacity-80">(系統已過濾行事曆事件與保留間隔)</span>
+                    </p>
+                    
+                    <div className="h-[400px] overflow-y-auto pr-2 space-y-4 custom-scrollbar">
+                      {isLoadingSchedule ? (
+                        <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-3">
+                          <Clock className="animate-spin-slow text-teal-500" size={32} />
+                          <p className="text-sm font-medium">同步最新空檔中...</p>
+                        </div>
+                      ) : error ? (
+                        <div className="flex flex-col items-center justify-center h-full text-red-500 space-y-3 p-6 text-center bg-red-50 rounded-xl border border-red-100 mx-2">
+                          <p className="font-bold text-lg">系統同步失敗</p>
+                          <p className="text-sm text-red-600 leading-relaxed">{error}</p>
+                        </div>
+                      ) : Object.keys(schedule).length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-gray-400"><p>近期已無可用時段，請稍後再試</p></div>
+                      ) : (
+                        Object.keys(schedule).sort().map(date => (
+                          <div key={date} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center text-teal-700 font-semibold mb-3 border-b border-gray-50 pb-2">
+                              <CalendarIcon size={18} className="mr-2" /> {schedule[date].label}
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                              {schedule[date].slots.map(time => (
+                                <button type="button" key={time} onClick={() => {
+                                  setSelectedDate(date);
+                                  setSelectedTime(time);
+                                  // 💡 加上了防呆保護，徹底消滅白畫面 Bug！
+                                  setSelectedDateLabel(schedule[date]?.label || ''); 
+                                  setStep(2);
+                                  safeScrollToTop();
+                                }} className="py-2.5 px-2 text-sm font-medium rounded-lg border border-teal-100 text-teal-700 bg-teal-50/50 hover:bg-teal-600 hover:text-white transition-all active:scale-95">{time}</button>
+                              ))}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 ) : step === 2 ? (
-                  <StepTwoForm schedule={schedule} selectedDate={selectedDate} selectedTime={selectedTime} formData={formData} onChange={e => setFormData({...formData, [e.target.name]: e.target.value})} onSubmit={handleSubmit} isSubmitting={isSubmitting} submitError={submitError} onBack={() => setStep(1)} />
+                  <div className="animate-fade-in-right">
+                    <div className="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl p-5 mb-6 flex items-center justify-between border border-teal-100 shadow-sm">
+                      <div>
+                        <p className="text-xs text-teal-600 font-bold mb-1 tracking-wider">已選時段</p>
+                        <p className="text-gray-800 font-bold text-lg">{selectedDateLabel} <span className="text-teal-700 ml-2">{selectedTime}</span></p>
+                      </div>
+                      <div className="bg-white p-2 rounded-full shadow-sm"><Clock className="text-teal-500" size={24} /></div>
+                    </div>
+
+                    {submitError && <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-200">⚠️ {submitError}</div>}
+
+                    <form onSubmit={handleSubmit} className="space-y-2">
+                      <InputField label="真實姓名" icon={User} required name="name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="請輸入您的姓名" />
+                      <InputField label="LINE ID / 名稱" icon={MessageCircle} required name="lineId" value={formData.lineId} onChange={e => setFormData({...formData, lineId: e.target.value})} placeholder="用於後續聯絡與查詢紀錄" />
+                      <InputField label="電子郵件" icon={Mail} required type="email" name="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="接收確認通知信件" />
+                      <InputField label="協談備註" icon={FileText} type="textarea" note="(選填)" name="notes" rows="3" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="簡單描述您想討論的議題..." />
+
+                      <div className="flex gap-3 mt-8">
+                        <button type="button" onClick={() => setStep(1)} disabled={isSubmitting} className="w-1/3 py-3.5 rounded-xl font-bold text-teal-700 bg-teal-100 hover:bg-teal-200 transition-all flex justify-center items-center">上一步</button>
+                        <button type="submit" disabled={isSubmitting} className={`w-2/3 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex justify-center items-center ${isSubmitting ? 'bg-gray-400 cursor-not-allowed shadow-none' : 'bg-teal-600 hover:bg-teal-700 active:scale-95'}`}>
+                          {isSubmitting ? <span className="flex items-center"><Clock className="animate-spin mr-2" size={18} /> 處理中...</span> : '確認送出'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 ) : (
                   <div className="text-center py-10 animate-scale-in">
                     <CheckCircle className="text-green-500 mx-auto mb-4" size={60} />
                     <h2 className="text-2xl font-bold mb-2">預約成功！</h2>
-                    <p className="text-slate-600 mb-8">{schedule[selectedDate]?.label} {selectedTime}</p>
-                    <button onClick={() => { setStep(1); setFormData({name:'', phone:'', email:'', notes:''}); }} className="text-teal-600 font-bold hover:underline">返回首頁</button>
+                    <p className="text-slate-600 mb-8">{selectedDateLabel} {selectedTime}</p>
+                    <button onClick={() => { setStep(1); setFormData({name:'', lineId:'', email:'', notes:''}); }} className="text-teal-600 font-bold hover:underline">返回首頁</button>
                   </div>
                 )
               ) : (
-                <div className="animate-fade-in-up -mt-2">
-                  <p className="text-gray-500 text-sm text-center mb-6 bg-teal-50 py-3 rounded-lg text-teal-700">輸入預約時的資料查詢紀錄</p>
+                <div className="animate-fade-in-up">
+                  <p className="text-gray-500 text-sm text-center mb-6 bg-teal-50 py-3 rounded-lg text-teal-700">請輸入預約時的資料查詢紀錄</p>
                   <form className="space-y-4">
-                    <input type="email" placeholder="預約用的 Email" className="w-full p-4 bg-slate-50 border rounded-xl" onChange={e => setFormData({...formData, email: e.target.value})} value={formData.email} />
-                    <input type="tel" placeholder="預約用的手機號碼" className="w-full p-4 bg-slate-50 border rounded-xl" onChange={e => setFormData({...formData, phone: e.target.value})} value={formData.phone} />
+                    <input type="email" placeholder="預約用的 Email" className="w-full p-4 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-teal-500" onChange={e => setFormData({...formData, email: e.target.value})} value={formData.email} />
+                    <input type="text" placeholder="預約用的 LINE ID / 名稱" className="w-full p-4 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-teal-500" onChange={e => setFormData({...formData, lineId: e.target.value})} value={formData.lineId} />
                     
                     <div className="mt-8 space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
-                      <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">查詢結果</h3>
-                      {allBookings.filter(b => b.email?.toLowerCase().trim() === formData.email?.toLowerCase().trim() && b.phone?.trim() === formData.phone?.trim()).length === 0 ? (
+                      <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider sticky top-0 bg-white z-10 pb-2">查詢結果</h3>
+                      {allBookings.filter(b => b.email?.toLowerCase().trim() === formData.email?.toLowerCase().trim() && b.lineId?.trim() === formData.lineId?.trim() && formData.email).length === 0 ? (
                         <p className="text-slate-400 text-center py-4 text-sm">請輸入正確的資料來查詢您的紀錄</p>
-                      ) : allBookings.filter(b => b.email?.toLowerCase().trim() === formData.email?.toLowerCase().trim() && b.phone?.trim() === formData.phone?.trim()).map(b => (
-                        <div key={b.id} className="p-4 bg-white border border-slate-200 rounded-2xl flex justify-between items-center shadow-sm">
-                          <div><p className="font-bold text-slate-800">{b.dateLabel} {b.time}</p><p className="text-xs text-slate-500">{b.name}</p></div>
-                          <button onClick={() => handleCancel(b)} className="text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors"><TrashIcon size={20} /></button>
+                      ) : allBookings.filter(b => b.email?.toLowerCase().trim() === formData.email?.toLowerCase().trim() && b.lineId?.trim() === formData.lineId?.trim() && formData.email).map(b => (
+                        <div key={b.id} className="p-4 bg-white border border-slate-200 rounded-2xl flex justify-between items-center shadow-sm mb-3">
+                          <div><p className="font-bold text-teal-700">{b.dateLabel} {b.time}</p><p className="text-xs text-slate-500 mt-1">{b.name}</p></div>
+                          <button onClick={(e) => { e.preventDefault(); handleCancel(b); }} className="text-red-500 p-2 hover:bg-red-50 rounded-lg transition-colors flex items-center text-xs font-bold border border-red-100">
+                            <TrashIcon size={16} className="mr-1" /> 取消
+                          </button>
                         </div>
                       ))}
                     </div>
