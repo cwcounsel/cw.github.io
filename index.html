@@ -186,7 +186,14 @@
             return !busySlots.some(busy => {
               const bStart = new Date(busy.start).getTime();
               const bEnd = new Date(busy.end).getTime();
-              if (bEnd - bStart > 82800000) return false;
+              
+              // 💡 【精準修正】判斷是否為「整日事件」或「跨日事件」(時間長度 >= 23小時)
+              if (bEnd - bStart >= 82800000) {
+                // 若這個選項時段落在整日事件範圍內，則視為衝突 (不加緩衝，精準阻擋這一天)
+                return (slotStart >= bStart && slotStart < bEnd) || (slotEnd > bStart && slotEnd <= bEnd);
+              }
+              
+              // 一般幾小時的事件：保留前後 1 小時緩衝
               return (slotEnd + buffer > bStart) && (slotStart < bEnd + buffer);
             });
           });
@@ -198,6 +205,8 @@
         }
         return available;
       }, [allBookings, busySlots]);
+
+      const availableDates = useMemo(() => Object.keys(schedule).sort(), [schedule]);
 
       const sendToGAS = (actionType, rawData) => {
         if (!GAS_WEBHOOK_URL) return;
