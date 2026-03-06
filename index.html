@@ -436,6 +436,7 @@
             if (bookedSlotsForDate.includes(time)) return false;
 
             // 2. 排除外部行事曆的事件 (並且與其他事件維持前後 2 小時的間隔)
+            // 將網頁時段轉換為 timestamp (假設您的系統在台灣時間 UTC+8)
             const slotStart = new Date(`${date}T${time}:00+08:00`).getTime();
             const slotEnd = slotStart + 60 * 60 * 1000; // 協談長度假設為 1 小時
             const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -443,6 +444,15 @@
             const hasConflict = busySlots.some(busy => {
               const busyStart = new Date(busy.start).getTime();
               const busyEnd = new Date(busy.end).getTime();
+
+              // 全天事件 (通常時間超過 23 小時) 會把整天都佔用
+              if (busyEnd - busyStart >= 23 * 60 * 60 * 1000) {
+                 // 如果這個全天事件包含我們考慮的這一天，就當作衝突
+                 const busyDateStr = new Date(busyStart).toISOString().split('T')[0];
+                 if (busyDateStr === date) {
+                     return true; 
+                 }
+              }
               
               // 衝突條件判斷：新時段的結尾+2小時如果蓋過原本事件的開始，且新時段的開始小於原本事件的結尾+2小時，就代表沒有維持 2 小時間隔
               return (slotEnd + TWO_HOURS > busyStart) && (slotStart < busyEnd + TWO_HOURS);
