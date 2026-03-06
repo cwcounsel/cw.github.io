@@ -388,10 +388,13 @@
       // 抓取外部 Google 行事曆的忙碌時間
       useEffect(() => {
         if (GAS_WEBHOOK_URL && GAS_WEBHOOK_URL.startsWith('http')) {
-          fetch(`${GAS_WEBHOOK_URL}?action=getBusy`)
+          // 加入 timestamp 防止瀏覽器快取舊的行事曆資料
+          const timestamp = new Date().getTime();
+          fetch(`${GAS_WEBHOOK_URL}?action=getBusy&t=${timestamp}`)
             .then(res => res.json())
             .then(data => {
               if (data && data.busy) {
+                console.log("成功取得行事曆外部事件:", data.busy);
                 setBusySlots(data.busy);
               }
             })
