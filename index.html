@@ -133,13 +133,15 @@
         const loadBusy = async () => {
           if (!GAS_WEBHOOK_URL || !GAS_WEBHOOK_URL.startsWith('http')) return;
           try {
+            // Attempt to fetch without CORS headers to avoid preflight issues in some environments.
             const res = await fetch(`${GAS_WEBHOOK_URL}?action=getBusy&t=${Date.now()}`);
             if (!res.ok) throw new Error("HTTP Error");
             const data = await res.json();
             if (data && data.busy) setBusySlots(data.busy);
           } catch (e) {
             console.error("Calendar Sync Error", e);
-            setError("無法讀取行事曆狀態，請確定 GAS 設為『所有人』。");
+            // Non-fatal error, just means we can't block off times. Let user proceed anyway.
+            console.warn("Could not sync with calendar. The system will rely only on Firebase booked times.");
           }
         };
         loadBusy();
