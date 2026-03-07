@@ -244,7 +244,7 @@
             if (isNaN(slotStart)) return false; 
             
             // 過去時間或太近的時間不開放 (1小時內)
-            if (slotStart < Date.now() + 43200000) return false;
+            if (slotStart < Date.now() + 86400000) return false;
 
             const slotEnd = slotStart + 3600000; // 選項長度為 1 小時
             const buffer = bufferMinutes * 60 * 1000;
