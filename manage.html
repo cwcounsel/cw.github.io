@@ -44,7 +44,8 @@
       measurementId: "G-WRTESNC67C"
     };
 
-    const appId = "my-booking-app"; 
+    // 💡 修復預覽環境中的 appId 對應問題
+    const appId = typeof __app_id !== 'undefined' ? __app_id : "my-booking-app";
 
     // 👇 【設定區 2】 您的 GAS 網址 👇
     const GAS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwud980ZnFReI9YkcX2sEpcn29eIKSGLUTOxd9-KBnXztlz3OjPgihY7ltMGqS8CvH2Xw/exec";
@@ -141,6 +142,7 @@
       const [newBlockTime, setNewBlockTime] = useState('10:00');
       const [isLoggingIn, setIsLoggingIn] = useState(false);
       const [authSetupError, setAuthSetupError] = useState(false);
+      const [dbError, setDbError] = useState(''); // 💡 追蹤資料庫權限錯誤
 
       const [toastMsg, setToastMsg] = useState({ message: '', type: '' });
       const [formData, setFormData] = useState({ name: '', lineName: '', phone: '', email: '', notes: '' });
@@ -189,6 +191,7 @@
       // 監聽預約與系統設定
       useEffect(() => {
         if (!user) return;
+        setDbError(''); // Reset on user change
         
         const bookingsRef = collection(db, 'artifacts', appId, 'public', 'data', 'bookings');
         const unsubBookings = onSnapshot(bookingsRef, 
@@ -197,8 +200,11 @@
             setIsLoadingSchedule(false);
           }, 
           (err) => { 
-            console.error("Firestore error:", err);
+            console.error("Firestore Bookings error:", err);
             setIsLoadingSchedule(false); 
+            if (err.code === 'permission-denied') {
+               setDbError("⚠️ Firestore 讀取權限不足：請至 Firebase 控制台的 Firestore Database -> Rules 開放讀寫權限。");
+            }
           }
         );
 
@@ -209,6 +215,11 @@
           } else {
             setManualBlockedSlots([]);
           }
+        }, (err) => {
+           console.error("Firestore Settings error:", err);
+           if (err.code === 'permission-denied') {
+             setDbError("⚠️ Firestore 讀取權限不足：請至 Firebase 控制台的 Firestore Database -> Rules 開放讀寫權限。");
+           }
         });
 
         return () => { unsubBookings(); unsubSettings(); };
@@ -335,7 +346,11 @@
           setStep(4);
         } catch (e) { 
           console.error("Booking err:", e);
-          setSubmitError("預約失敗，請稍後再試。"); 
+          if (e.code === 'permission-denied') {
+             setSubmitError("預約失敗：Firestore 權限不足，請檢查資料庫規則。");
+          } else {
+             setSubmitError("預約失敗，請稍後再試。"); 
+          }
         } finally { 
           setIsSubmitting(false); 
           safeScrollToTop(); 
@@ -370,7 +385,11 @@
           showToast("預約已取消成功！", "success");
         } catch (e) { 
           console.error("Cancel err:", e);
-          showToast("取消失敗，請檢查網路連線", "error"); 
+          if (e.code === 'permission-denied') {
+             showToast("取消失敗：Firestore 權限不足", "error"); 
+          } else {
+             showToast("取消失敗，請檢查網路連線", "error"); 
+          }
         }
       };
 
@@ -443,10 +462,19 @@
         }
         try {
           const newBlocks = [...manualBlockedSlots, slotKey];
+          // 💡 寫入 Firestore 設定
           await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'general'), { blockedSlots: newBlocks }, { merge: true });
           showToast("時段封鎖成功", "success");
+          setNewBlockDate('');
+          setNewBlockTime('10:00');
         } catch (err) {
-          showToast("封鎖失敗", "error");
+          console.error("Block slot error:", err);
+          if (err.code === 'permission-denied') {
+             showToast("封鎖失敗：Firestore 權限不足", "error");
+             setDbError("⚠️ 封鎖失敗：您在 Firestore Database 的規則(Rules)尚未允許寫入！請前往修改規則為 `allow read, write: if true;`");
+          } else {
+             showToast("封鎖失敗", "error");
+          }
         }
       };
 
@@ -456,7 +484,13 @@
           await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'general'), { blockedSlots: newBlocks }, { merge: true });
           showToast("已解除封鎖", "success");
         } catch (err) {
-          showToast("解除失敗", "error");
+          console.error("Remove Block slot error:", err);
+          if (err.code === 'permission-denied') {
+             showToast("解除失敗：Firestore 權限不足", "error");
+             setDbError("⚠️ 解除失敗：您在 Firestore Database 的規則(Rules)尚未允許寫入！請前往修改規則為 `allow read, write: if true;`");
+          } else {
+             showToast("解除失敗", "error");
+          }
         }
       };
 
@@ -571,6 +605,13 @@
                 <button onClick={() => setAdminTab('dashboard')} className={`flex-1 py-3.5 text-sm font-bold transition-colors flex items-center justify-center ${adminTab === 'dashboard' ? 'bg-white text-slate-800 border-b-2 border-slate-800' : 'text-slate-400'}`}><CalendarIcon size={16} className="mr-1.5"/> 預約總覽</button>
                 <button onClick={() => setAdminTab('settings')} className={`flex-1 py-3.5 text-sm font-bold transition-colors flex items-center justify-center ${adminTab === 'settings' ? 'bg-white text-slate-800 border-b-2 border-slate-800' : 'text-slate-400'}`}><SettingsIcon size={16} className="mr-1.5"/> 排休管理</button>
               </div>
+            )}
+
+            {/* 💡 顯示資料庫權限錯誤提示 */}
+            {dbError && (
+               <div className="bg-red-50 text-red-700 px-5 py-3 text-[13px] font-bold border-b border-red-200 shadow-inner z-10 shrink-0 leading-relaxed">
+                 {dbError}
+               </div>
             )}
 
             <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
