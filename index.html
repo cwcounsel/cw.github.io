@@ -76,7 +76,7 @@
     const Toast = ({ message, type, onClose }) => {
       if (!message) return null;
       return (
-        <div className={`fixed top-4 left-1/2 z-50 px-6 py-3 rounded-full shadow-lg font-bold text-sm animate-slide-down flex items-center space-x-2 ${type === 'error' ? 'bg-red-500 text-white' : 'bg-teal-600 text-white'}`}>
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-lg font-bold text-sm animate-slide-down flex items-center space-x-2 ${type === 'error' ? 'bg-red-500 text-white' : 'bg-teal-600 text-white'}`}>
           {type === 'error' ? <InfoIcon size={18} /> : <CheckCircle size={18} />}
           <span>{message}</span>
         </div>
@@ -205,15 +205,10 @@
         const available = {};
         const today = new Date();
         
-        // 💡 優化點 1：將緩衝時間設為「黃金 20 分鐘」。
-        // 這能完美解決您的所有情境，不多也不少！
-        // 1. 4/6 情境：15:20 的行程，剛好允許 14:00 的預約 (15:00 結束 + 20分休息 = 15:20 不衝突)。
-        // 2. 4/6 情境：21:40 的行程結束，剛好允許 22:00 的預約 (21:40 + 20分休息 = 22:00 不衝突)。
-        // 3. 3/22 情境：14:00 結束的行程，加 20 分鐘緩衝後會擋下 14:00 的預約，自動從 16:00 開始！
+        // 💡 優化點 1：將緩衝時間設為 0 分鐘，允許行程結束立刻開放預約
         const bufferMinutes = 0; 
         
         // 💡 優化點 2：將 Firebase 即時預約也轉換成「忙碌時段」加入計算
-        // 這樣在 GAS 尚未同步前，系統也能立刻擋下衝突時段！
         const realtimeBusy = [...busySlots];
         allBookings.forEach(b => {
           if (b.dateRaw && b.time) {
@@ -243,7 +238,7 @@
             const slotStart = new Date(`${dateStr}T${time}:00+08:00`).getTime();
             if (isNaN(slotStart)) return false; 
             
-            // 過去時間或太近的時間不開放 (1小時內)
+            // 💡 限制只能預約 24 小時之後的時段 (防止突擊式預約)
             if (slotStart < Date.now() + 86400000) return false;
 
             const slotEnd = slotStart + 3600000; // 選項長度為 1 小時
@@ -258,7 +253,7 @@
                 // 排除整日事件
                 return (slotStart >= bStart && slotStart < bEnd) || (slotEnd > bStart && slotEnd <= bEnd);
               }
-              // 套用完美緩衝時間
+              // 套用緩衝時間
               return (slotEnd + buffer > bStart) && (slotStart < bEnd + buffer);
             });
           });
@@ -384,7 +379,7 @@
         return daysArray;
       };
 
-const handlePrevMonth = () => {
+      const handlePrevMonth = () => {
         setDisplayMonth(new Date(displayMonth.getFullYear(), displayMonth.getMonth() - 1, 1));
         setActiveCalendarDate(null);
       };
@@ -394,14 +389,7 @@ const handlePrevMonth = () => {
         setActiveCalendarDate(null);
       };
 
-      // 👇 這是您要新增的「回到今天/本月」函式 👇
-      const handleGoToToday = () => {
-        const today = new Date();
-        setDisplayMonth(new Date(today.getFullYear(), today.getMonth(), 1));
-        setActiveCalendarDate(null);
-      };
-
-      // 👇 這是您要新增的「回到今天/本月」函式 👇
+      // 💡 新增的「回到本月」函式
       const handleGoToToday = () => {
         const today = new Date();
         setDisplayMonth(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -468,25 +456,25 @@ const handlePrevMonth = () => {
                       </div>
                     ) : (
                       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 sm:p-4">
-{/* 日曆切換標頭 */}
-<div className="flex items-center justify-between mb-2">
-  <button onClick={handlePrevMonth} disabled={isPrevDisabled} className="p-1.5 text-slate-400 hover:text-teal-600 disabled:opacity-30 transition-colors rounded-full hover:bg-slate-50"><ChevronLeft size={18}/></button>
-  
-  <div className="flex items-center space-x-2">
-    <span className="font-bold text-slate-700 text-sm tracking-wide">{currentMonthStr}</span>
-    {/* 👇 當不在「本月」時，才會顯示這個按鈕 👇 */}
-    {!isPrevDisabled && (
-      <button 
-        onClick={handleGoToToday} 
-        className="text-[11px] px-2 py-0.5 bg-teal-50 text-teal-600 border border-teal-100 rounded-full hover:bg-teal-600 hover:text-white font-bold transition-all active:scale-95 shadow-sm"
-      >
-        回本月
-      </button>
-    )}
-  </div>
+                        
+                        {/* 💡 整合好的日曆切換標頭 (包含回本月按鈕) */}
+                        <div className="flex items-center justify-between mb-2">
+                          <button onClick={handlePrevMonth} disabled={isPrevDisabled} className="p-1.5 text-slate-400 hover:text-teal-600 disabled:opacity-30 transition-colors rounded-full hover:bg-slate-50"><ChevronLeft size={18}/></button>
+                          
+                          <div className="flex items-center space-x-2">
+                            <span className="font-bold text-slate-700 text-sm tracking-wide">{currentMonthStr}</span>
+                            {!isPrevDisabled && (
+                              <button 
+                                onClick={handleGoToToday} 
+                                className="text-[11px] px-2 py-0.5 bg-teal-50 text-teal-600 border border-teal-100 rounded-full hover:bg-teal-600 hover:text-white font-bold transition-all active:scale-95 shadow-sm"
+                              >
+                                回本月
+                              </button>
+                            )}
+                          </div>
 
-  <button onClick={handleNextMonth} className="p-1.5 text-slate-400 hover:text-teal-600 transition-colors rounded-full hover:bg-slate-50"><ChevronRight size={18}/></button>
-</div>
+                          <button onClick={handleNextMonth} className="p-1.5 text-slate-400 hover:text-teal-600 transition-colors rounded-full hover:bg-slate-50"><ChevronRight size={18}/></button>
+                        </div>
                         
                         {/* 星期列 (週一為首) */}
                         <div className="grid grid-cols-7 gap-1 mb-1 text-center text-[11px] font-bold text-slate-400">
