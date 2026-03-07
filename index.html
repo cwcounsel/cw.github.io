@@ -394,6 +394,13 @@
         setActiveCalendarDate(null);
       };
 
+      // 👇 這是您要新增的「回到今天/本月」函式 👇
+      const handleGoToToday = () => {
+        const today = new Date();
+        setDisplayMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+        setActiveCalendarDate(null);
+      };
+      
       const currentMonthStr = `${displayMonth.getFullYear()}年 ${displayMonth.getMonth() + 1}月`;
       const today = new Date();
       const isPrevDisabled = displayMonth.getFullYear() === today.getFullYear() && displayMonth.getMonth() === today.getMonth();
