@@ -44,7 +44,6 @@
       measurementId: "G-WRTESNC67C"
     };
 
-    // 💡 修復預覽環境中的 appId 對應問題
     const appId = typeof __app_id !== 'undefined' ? __app_id : "my-booking-app";
 
     // 👇 【設定區 2】 您的 GAS 網址 👇
@@ -75,7 +74,6 @@
 
     const safeScrollToTop = () => { try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {} };
 
-    // 提示訊息組件
     const Toast = ({ message, type, onClose }) => {
       if (!message) return null;
       return (
@@ -112,7 +110,7 @@
       const [busySlots, setBusySlots] = useState([]);
       const [manualBlockedSlots, setManualBlockedSlots] = useState([]); 
       
-      const [currentMode, setCurrentMode] = useState('book'); // 'book', 'query', 'admin'
+      const [currentMode, setCurrentMode] = useState('book');
       const [step, setStep] = useState(1);
       
       const [selectedDate, setSelectedDate] = useState(null);
@@ -131,10 +129,9 @@
       const [isQuerying, setIsQuerying] = useState(false);
       const [cancelConfirmId, setCancelConfirmId] = useState(null);
 
-      // --- 🛡️ 管理員後台專用 State ---
       const [secretClicks, setSecretClicks] = useState(0);
       const [showAdminLogin, setShowAdminLogin] = useState(false);
-      const [adminEmailInput, setAdminEmailInput] = useState(''); // 新增 Email 欄位
+      const [adminEmailInput, setAdminEmailInput] = useState('');
       const [adminPwdInput, setAdminPwdInput] = useState('');
       const [isAdmin, setIsAdmin] = useState(false);
       const [adminTab, setAdminTab] = useState('dashboard');
@@ -142,7 +139,7 @@
       const [newBlockTime, setNewBlockTime] = useState('10:00');
       const [isLoggingIn, setIsLoggingIn] = useState(false);
       const [authSetupError, setAuthSetupError] = useState(false);
-      const [dbError, setDbError] = useState(''); // 💡 追蹤資料庫權限錯誤
+      const [dbError, setDbError] = useState('');
 
       const [toastMsg, setToastMsg] = useState({ message: '', type: '' });
       const [formData, setFormData] = useState({ name: '', lineName: '', phone: '', email: '', notes: '' });
@@ -158,25 +155,20 @@
         setTimeout(() => setToastMsg({ message: '', type: '' }), 3500);
       };
 
-      // 💡 權限狀態監聽 (包含訪客與管理員)
       useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
           if (currentUser) {
             setUser(currentUser);
-            // 💡 修正判斷邏輯：嚴格檢查登入方式是否包含「Email/密碼」(排除預覽環境的開發者 Token)
             const isEmailAdmin = currentUser.providerData && currentUser.providerData.some(p => p.providerId === 'password');
-            
             if (isEmailAdmin) {
               setIsAdmin(true);
               setCurrentMode('admin');
             } else {
               setIsAdmin(false);
-              setCurrentMode(prev => prev === 'admin' ? 'book' : prev); // 確保退回預約首頁
+              setCurrentMode(prev => prev === 'admin' ? 'book' : prev);
             }
           } else {
-            // 如果沒有登入狀態 (例如剛登出管理員)，則重新幫他匿名登入以使用前台功能
             try {
-              // 💡 放棄使用不相容的自訂 Token，強制使用訪客匿名登入
               await signInAnonymously(auth);
             } catch (e) {
               setError("資料庫連線失敗，請稍後再試。");
@@ -184,14 +176,12 @@
             }
           }
         });
-
         return () => unsubscribe();
       }, []);
 
-      // 監聽預約與系統設定
       useEffect(() => {
         if (!user) return;
-        setDbError(''); // Reset on user change
+        setDbError('');
         
         const bookingsRef = collection(db, 'artifacts', appId, 'public', 'data', 'bookings');
         const unsubBookings = onSnapshot(bookingsRef, 
@@ -202,9 +192,7 @@
           (err) => { 
             console.error("Firestore Bookings error:", err);
             setIsLoadingSchedule(false); 
-            if (err.code === 'permission-denied') {
-               setDbError("⚠️ Firestore 讀取權限不足：請至 Firebase 控制台的 Firestore Database -> Rules 開放讀寫權限。");
-            }
+            if (err.code === 'permission-denied') setDbError("⚠️ Firestore 讀取權限不足：請至 Firebase 控制台的 Firestore Database -> Rules 開放讀寫權限。");
           }
         );
 
@@ -217,9 +205,7 @@
           }
         }, (err) => {
            console.error("Firestore Settings error:", err);
-           if (err.code === 'permission-denied') {
-             setDbError("⚠️ Firestore 讀取權限不足：請至 Firebase 控制台的 Firestore Database -> Rules 開放讀寫權限。");
-           }
+           if (err.code === 'permission-denied') setDbError("⚠️ Firestore 讀取權限不足：請至 Firebase 控制台的 Firestore Database -> Rules 開放讀寫權限。");
         });
 
         return () => { unsubBookings(); unsubSettings(); };
@@ -245,13 +231,14 @@
         fetchCalendarData();
       }, []);
 
-      // 結算所有可用時段
       const schedule = useMemo(() => {
         const available = {};
         const today = new Date();
         const bufferMinutes = 0; 
         
         const realtimeBusy = [...busySlots];
+        
+        // 1. 一般預約的佔用時間
         allBookings.forEach(b => {
           if (b.dateRaw && b.time) {
             const startMs = new Date(`${b.dateRaw}T${b.time}:00+08:00`).getTime();
@@ -259,6 +246,21 @@
               realtimeBusy.push({
                 start: new Date(startMs).toISOString(),
                 end: new Date(startMs + 3600000).toISOString() 
+              });
+            }
+          }
+        });
+
+        // 💡 極致防護 1：將手動封鎖時段也直接轉換為系統認可的「精確忙碌區塊」
+        const safeBlockedSlots = Array.isArray(manualBlockedSlots) ? manualBlockedSlots.map(s => s.trim()) : [];
+        safeBlockedSlots.forEach(slotStr => {
+          const [d, t] = slotStr.split(' ');
+          if (d && t) {
+            const startMs = new Date(`${d}T${t}:00+08:00`).getTime();
+            if (!isNaN(startMs)) {
+              realtimeBusy.push({
+                start: new Date(startMs).toISOString(),
+                end: new Date(startMs + 3600000).toISOString()
               });
             }
           }
@@ -282,8 +284,9 @@
             const slotEnd = slotStart + 3600000; 
             if (slotEnd > Date.now() + (30 * 24 * 60 * 60 * 1000)) return false;
 
-            const slotKey = `${dateStr} ${time}`;
-            if (manualBlockedSlots.includes(slotKey)) return false;
+            // 💡 極致防護 2：確保字串精準比對 (避免單雙數日期的零被吃掉)
+            const slotKey = `${dateStr} ${time}`.trim();
+            if (safeBlockedSlots.includes(slotKey)) return false;
 
             const buffer = bufferMinutes * 60 * 1000;
             return !realtimeBusy.some(busy => {
@@ -393,7 +396,6 @@
         }
       };
 
-      // --- 🛡️ 管理員功能 ---
       const handleSecretClick = () => {
         if (isAdmin) return; 
         const newClicks = secretClicks + 1;
@@ -407,23 +409,18 @@
         }, 5000);
       };
 
-      // 💡 Firebase 登入處理邏輯
       const handleAdminLogin = async (e) => {
         e.preventDefault();
         setIsLoggingIn(true);
         setAuthSetupError(false);
         try {
-          // 透過 Firebase 驗證 Email 與密碼
           await signInWithEmailAndPassword(auth, adminEmailInput, adminPwdInput);
-          
-          // 登入成功後，onAuthStateChanged 會自動將其判斷為管理員
           setShowAdminLogin(false);
           setAdminEmailInput('');
           setAdminPwdInput('');
           showToast("管理員登入成功", "success");
         } catch (err) {
           console.error("Login error:", err);
-          // 💡 特別處理 auth/operation-not-allowed 錯誤，改用畫面提示取代 alert
           if (err.code === 'auth/operation-not-allowed') {
             setAuthSetupError(true);
             showToast("⚠️ Firebase 未啟用電子郵件登入", "error");
@@ -437,10 +434,8 @@
         }
       };
 
-      // 💡 Firebase 登出處理邏輯
       const handleAdminLogout = async () => {
         try {
-          // 登出後，onAuthStateChanged 會偵測到狀態改變，並自動重新配發匿名帳號
           await signOut(auth);
           setIsAdmin(false);
           setCurrentMode('book');
@@ -455,14 +450,23 @@
       const handleAddBlockSlot = async (e) => {
         e.preventDefault();
         if(!newBlockDate || !newBlockTime) return;
-        const slotKey = `${newBlockDate} ${newBlockTime}`;
+        
+        // 💡 強制重塑日期格式，避免瀏覽器傳送未補零的日期
+        let formattedDate = newBlockDate.trim();
+        if (formattedDate.includes('-')) {
+          const parts = formattedDate.split('-');
+          if (parts.length === 3) {
+            formattedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+          }
+        }
+        const slotKey = `${formattedDate} ${newBlockTime.trim()}`;
+
         if(manualBlockedSlots.includes(slotKey)){
            showToast("該時段已在封鎖名單中", "error");
            return;
         }
         try {
           const newBlocks = [...manualBlockedSlots, slotKey];
-          // 💡 寫入 Firestore 設定
           await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'general'), { blockedSlots: newBlocks }, { merge: true });
           showToast("時段封鎖成功", "success");
           setNewBlockDate('');
@@ -542,7 +546,6 @@
           
           <Toast message={toastMsg.message} type={toastMsg.type} onClose={() => setToastMsg({ message: '', type: '' })} />
 
-          {/* 🛡️ 修改後的管理員登入彈窗：包含 Email 與 密碼 */}
           {showAdminLogin && (
             <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 animate-fade-in-up">
               <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm relative">
@@ -585,7 +588,6 @@
               
               {currentMode === 'book' && step < 4 && <StepIndicator currentStep={step} />}
               
-              {/* 💡 登出按鈕：現在綁定完整的 Firebase 登出事件 */}
               {currentMode === 'admin' && (
                 <button onClick={handleAdminLogout} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-full transition-colors text-slate-300 hover:text-white" title="登出">
                   <LogOutIcon size={20} />
@@ -607,7 +609,6 @@
               </div>
             )}
 
-            {/* 💡 顯示資料庫權限錯誤提示 */}
             {dbError && (
                <div className="bg-red-50 text-red-700 px-5 py-3 text-[13px] font-bold border-b border-red-200 shadow-inner z-10 shrink-0 leading-relaxed">
                  {dbError}
