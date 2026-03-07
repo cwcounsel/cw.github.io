@@ -384,13 +384,27 @@
         return daysArray;
       };
 
-      const handlePrevMonth = () => {
+const handlePrevMonth = () => {
         setDisplayMonth(new Date(displayMonth.getFullYear(), displayMonth.getMonth() - 1, 1));
         setActiveCalendarDate(null);
       };
 
       const handleNextMonth = () => {
         setDisplayMonth(new Date(displayMonth.getFullYear(), displayMonth.getMonth() + 1, 1));
+        setActiveCalendarDate(null);
+      };
+
+      // 👇 這是您要新增的「回到今天/本月」函式 👇
+      const handleGoToToday = () => {
+        const today = new Date();
+        setDisplayMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+        setActiveCalendarDate(null);
+      };
+
+      // 👇 這是您要新增的「回到今天/本月」函式 👇
+      const handleGoToToday = () => {
+        const today = new Date();
+        setDisplayMonth(new Date(today.getFullYear(), today.getMonth(), 1));
         setActiveCalendarDate(null);
       };
 
