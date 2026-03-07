@@ -222,9 +222,8 @@
           }
         });
 
-        // 💡 終極解法：將前端顯示天數從 30 縮減為 28 (也就是 29 天內)
-        // 如此一來，前端永遠不會顯示舊版 GAS 30天交界點的資料，完美避開下午行程讀不到的 Bug！
-        for (let i = 0; i <= 28; i++) {
+        // 💡 恢復產生 30 天的日期按鈕，把天數都完整秀出來！
+        for (let i = 0; i <= 30; i++) {
           const next = new Date(today);
           next.setDate(today.getDate() + i);
           
@@ -244,6 +243,12 @@
             if (slotStart < Date.now() + 86400000) return false;
 
             const slotEnd = slotStart + 3600000; // 選項長度為 1 小時
+            
+            // 💡 終極精準解法：設定最高上限為精確的「30天 (30 * 24 * 60 * 60 * 1000 毫秒)」
+            // 只要這個選項的結束時間超過這條線，我們就直接把它隱藏！
+            // 這樣第 30 天早上的時段會留下，但下午晚上的幽靈時段會完美消失，不需要犧牲 4/5 號！
+            if (slotEnd > Date.now() + (30 * 24 * 60 * 60 * 1000)) return false;
+
             const buffer = bufferMinutes * 60 * 1000;
 
             // 檢查是否與任何行事曆/Firebase忙碌時段衝突
